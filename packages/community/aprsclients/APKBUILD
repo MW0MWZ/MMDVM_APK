@@ -1,0 +1,125 @@
+# Contributor: MW0MWZ <andy@mw0mwz.co.uk>
+# Maintainer: MW0MWZ <andy@mw0mwz.co.uk>
+pkgname=aprsclients
+# Version will be set dynamically by build script (YYYY.MM.DD format)
+pkgver=2025.01.01
+pkgrel=0
+# Git commit will be captured during build
+_gitcommit="ae3a3a7"
+pkgdesc="APRS Clients for Amateur Radio - Gateway between APRS-IS and RF networks"
+url="https://github.com/g4klx/APRSGateway"
+arch="x86_64 armhf aarch64"
+license="GPL-2.0-or-later"
+makedepends="
+	build-base
+	git
+	"
+depends="
+	libgcc
+	libstdc++
+	"
+subpackages="$pkgname-doc $pkgname-openrc"
+source=""
+options="!check"  # No test suite
+giturl="https://github.com/g4klx/APRSGateway.git"
+
+# We'll clone the git repo in prepare() instead of using source
+prepare() {
+	# Clean any existing source
+	rm -rf "$srcdir/APRSGateway"
+	
+	# Clone the repository
+	msg "Cloning APRSGateway from $giturl"
+	git clone "$giturl" "$srcdir/APRSGateway"
+	cd "$srcdir/APRSGateway"
+	
+	# Get the version info that will be embedded in the binary
+	local git_version=$(git describe --tags --always)
+	msg "APRSGateway git version: $git_version"
+	
+	# Apply any patches if needed
+	cd "$srcdir"
+	default_prepare || true
+}
+
+build() {
+	cd "$srcdir/APRSGateway"
+	
+	# Clean previous builds
+	make clean
+	
+	# Build with appropriate flags for Alpine
+	make \
+		CFLAGS="$CFLAGS" \
+		CXXFLAGS="$CXXFLAGS" \
+		LDFLAGS="$LDFLAGS" \
+		-j $(nproc) \
+		all
+}
+
+package() {
+	cd "$srcdir/APRSGateway"
+	
+	# Install the main binary
+	install -Dm755 APRSGateway "$pkgdir"/usr/bin/APRSGateway
+	
+	# Install configuration sample to /usr/share
+	install -Dm644 APRSGateway.ini "$pkgdir"/usr/share/aprsclients/APRSGateway.ini.sample
+	
+	# Also install a copy to /etc for actual use
+	install -dm755 "$pkgdir"/etc/aprsclients
+	install -Dm644 APRSGateway.ini "$pkgdir"/etc/aprsclients/APRSGateway.ini.example
+	
+	# Install audio files if they exist
+	if [ -d "Audio" ] || [ -d "audio" ]; then
+		install -dm755 "$pkgdir"/usr/share/aprsclients/audio
+		cp -r [Aa]udio/* "$pkgdir"/usr/share/aprsclients/audio/ 2>/dev/null || true
+	fi
+	
+	# Install systemd service file if it exists (for reference)
+	if [ -f linux/systemd/aprsgateway.service ]; then
+		install -Dm644 linux/systemd/aprsgateway.service \
+			"$pkgdir"/usr/share/doc/$pkgname/aprsgateway.service.example
+	elif [ -f aprsgateway.service ]; then
+		install -Dm644 aprsgateway.service \
+			"$pkgdir"/usr/share/doc/$pkgname/aprsgateway.service.example
+	fi
+	
+	# Install README if it exists
+	if [ -f README.md ]; then
+		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README.md
+	elif [ -f README ]; then
+		install -Dm644 README "$pkgdir"/usr/share/doc/$pkgname/README
+	fi
+	
+	# Look for license file
+	mkdir -p "$pkgdir"/usr/share/licenses/$pkgname
+	if [ -f LICENSE ]; then
+		install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	elif [ -f COPYING ]; then
+		install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
+	elif [ -f LICENSE.txt ]; then
+		install -Dm644 LICENSE.txt "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	else
+		# If no license file found, create a reference
+		echo "GPL-2.0-or-later - See upstream repository" > "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	fi
+	
+	# Create necessary directories
+	install -dm755 "$pkgdir"/var/log/aprsclients
+	install -dm755 "$pkgdir"/etc/aprsclients
+	install -dm755 "$pkgdir"/usr/share/aprsclients
+	
+	# Install OpenRC init script
+	install -Dm755 "$srcdir"/../aprsgateway.initd "$pkgdir"/etc/init.d/aprsgateway
+	install -Dm644 "$srcdir"/../aprsgateway.confd "$pkgdir"/etc/conf.d/aprsgateway
+}
+
+doc() {
+	default_doc
+}
+
+openrc() {
+    default_openrc
+    install_if=
+}

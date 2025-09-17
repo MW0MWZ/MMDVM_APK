@@ -1,0 +1,11 @@
+# Configuration for DMR2NXDN Cross-Mode Converter service
+
+# Configuration file location
+# DMR2NXDN_CONFIG="/etc/dmrclients/DMR2NXDN.ini"
+
+# User and group to run as
+# DMR2NXDN_USER="dmr2nxdn"
+# DMR2NXDN_GROUP="dmr2nxdn"
+
+# Log file location
+# DMR2NXDN_LOGFILE="/var/log/dmrclients/dmr2nxdn.log"

@@ -1,0 +1,57 @@
+#!/sbin/openrc-run
+# OpenRC init script for YSF2NXDN Cross-Mode Converter
+
+name="YSF2NXDN"
+description="YSF to NXDN cross-mode converter for Amateur Radio"
+
+# Configuration
+: ${YSF2NXDN_CONFIG:="/etc/ysfclients/YSF2NXDN.ini"}
+: ${YSF2NXDN_USER:="ysf2nxdn"}
+: ${YSF2NXDN_GROUP:="ysf2nxdn"}
+: ${YSF2NXDN_LOGFILE:="/var/log/ysfclients/ysf2nxdn.log"}
+
+command="/usr/bin/YSF2NXDN"
+command_args="${YSF2NXDN_CONFIG}"
+command_user="${YSF2NXDN_USER}:${YSF2NXDN_GROUP}"
+command_background=true
+pidfile="/run/${RC_SVCNAME}.pid"
+start_stop_daemon_args="--stdout ${YSF2NXDN_LOGFILE} --stderr ${YSF2NXDN_LOGFILE}"
+
+depend() {
+	need net
+	after firewall
+	use logger dns
+}
+
+start_pre() {
+	# Check if configuration exists
+	if [ ! -f "${YSF2NXDN_CONFIG}" ]; then
+		eerror "YSF2NXDN configuration file ${YSF2NXDN_CONFIG} does not exist"
+		eerror "Please create it from: cp /etc/ysfclients/YSF2NXDN.ini.example ${YSF2NXDN_CONFIG}"
+		return 1
+	fi
+	
+	# Create log directory if it doesn't exist
+	checkpath -d -o "${YSF2NXDN_USER}:${YSF2NXDN_GROUP}" -m 0755 /var/log/ysfclients
+	
+	# Create log file if it doesn't exist
+	checkpath -f -o "${YSF2NXDN_USER}:${YSF2NXDN_GROUP}" -m 0644 "${YSF2NXDN_LOGFILE}"
+	
+	# Create user if it doesn't exist
+	if ! id -u "${YSF2NXDN_USER}" >/dev/null 2>&1; then
+		einfo "Creating user ${YSF2NXDN_USER}"
+		adduser -D -H -s /sbin/nologin -G "${YSF2NXDN_GROUP}" "${YSF2NXDN_USER}" 2>/dev/null || \
+		adduser -D -H -s /sbin/nologin "${YSF2NXDN_USER}" 2>/dev/null
+	fi
+}
+
+stop_post() {
+	# Give the process a moment to clean up
+	sleep 1
+}
+
+reload() {
+	ebegin "Reloading ${name} configuration"
+	start-stop-daemon --signal HUP --pidfile "${pidfile}"
+	eend $?
+}

@@ -1,0 +1,11 @@
+# Configuration for NXDN Parrot service
+
+# Configuration file location
+# NXDNPARROT_CONFIG="/etc/nxdnclients/NXDNParrot.ini"
+
+# User and group to run as
+# NXDNPARROT_USER="nxdnparrot"
+# NXDNPARROT_GROUP="nxdnparrot"
+
+# Log file location
+# NXDNPARROT_LOGFILE="/var/log/nxdnclients/nxdnparrot.log"

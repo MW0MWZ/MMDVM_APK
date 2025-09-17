@@ -1,0 +1,11 @@
+# Configuration for YSF2NXDN Cross-Mode Converter service
+
+# Configuration file location
+# YSF2NXDN_CONFIG="/etc/ysfclients/YSF2NXDN.ini"
+
+# User and group to run as
+# YSF2NXDN_USER="ysf2nxdn"
+# YSF2NXDN_GROUP="ysf2nxdn"
+
+# Log file location
+# YSF2NXDN_LOGFILE="/var/log/ysfclients/ysf2nxdn.log"

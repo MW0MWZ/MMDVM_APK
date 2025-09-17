@@ -1,0 +1,57 @@
+#!/sbin/openrc-run
+# OpenRC init script for DAPNETGateway
+
+name="DAPNETGateway"
+description="DAPNET Gateway for Amateur Radio POCSAG paging network"
+
+# Configuration
+: ${DAPNETGATEWAY_CONFIG:="/etc/pocsagclients/DAPNETGateway.ini"}
+: ${DAPNETGATEWAY_USER:="dapnet"}
+: ${DAPNETGATEWAY_GROUP:="dapnet"}
+: ${DAPNETGATEWAY_LOGFILE:="/var/log/pocsagclients/dapnetgateway.log"}
+
+command="/usr/bin/DAPNETGateway"
+command_args="${DAPNETGATEWAY_CONFIG}"
+command_user="${DAPNETGATEWAY_USER}:${DAPNETGATEWAY_GROUP}"
+command_background=true
+pidfile="/run/${RC_SVCNAME}.pid"
+start_stop_daemon_args="--stdout ${DAPNETGATEWAY_LOGFILE} --stderr ${DAPNETGATEWAY_LOGFILE}"
+
+depend() {
+	need net
+	after firewall mmdvmhost
+	use logger
+}
+
+start_pre() {
+	# Check if configuration exists
+	if [ ! -f "${DAPNETGATEWAY_CONFIG}" ]; then
+		eerror "Configuration file ${DAPNETGATEWAY_CONFIG} does not exist"
+		eerror "Please create it from the example: cp /etc/pocsagclients/DAPNETGateway.ini.example ${DAPNETGATEWAY_CONFIG}"
+		return 1
+	fi
+	
+	# Create log directory if it doesn't exist
+	checkpath -d -o "${DAPNETGATEWAY_USER}:${DAPNETGATEWAY_GROUP}" -m 0755 /var/log/pocsagclients
+	
+	# Create log file if it doesn't exist
+	checkpath -f -o "${DAPNETGATEWAY_USER}:${DAPNETGATEWAY_GROUP}" -m 0644 "${DAPNETGATEWAY_LOGFILE}"
+	
+	# Create user if it doesn't exist
+	if ! id -u "${DAPNETGATEWAY_USER}" >/dev/null 2>&1; then
+		einfo "Creating user ${DAPNETGATEWAY_USER}"
+		adduser -D -H -s /sbin/nologin -G "${DAPNETGATEWAY_GROUP}" "${DAPNETGATEWAY_USER}" 2>/dev/null || \
+		adduser -D -H -s /sbin/nologin "${DAPNETGATEWAY_USER}" 2>/dev/null
+	fi
+}
+
+stop_post() {
+	# Give the process a moment to clean up
+	sleep 1
+}
+
+reload() {
+	ebegin "Reloading ${name} configuration"
+	start-stop-daemon --signal HUP --pidfile "${pidfile}"
+	eend $?
+}

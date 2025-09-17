@@ -1,0 +1,15 @@
+# Configuration for FMGateway service
+
+# Configuration file location
+# FMGATEWAY_CONFIG="/etc/fmclients/FMGateway.ini"
+
+# User and group to run as
+# Note: User should be in 'audio' group for sound card access
+# FMGATEWAY_USER="fmgateway"
+# FMGATEWAY_GROUP="fmgateway"
+
+# Log file location
+# FMGATEWAY_LOGFILE="/var/log/fmclients/fmgateway.log"
+
+# Additional command line options
+# FMGATEWAY_OPTS=""

@@ -1,0 +1,74 @@
+#!/sbin/openrc-run
+# OpenRC init script for DStarGateway
+
+name="DStarGateway"
+description="D-Star Gateway for digital voice communications"
+
+# Configuration
+: ${DSTARGATEWAY_CONFIG:="/etc/dstarclients/dstargateway.cfg"}
+: ${DSTARGATEWAY_USER:="dstar"}
+: ${DSTARGATEWAY_GROUP:="dstar"}
+: ${DSTARGATEWAY_LOGFILE:="/var/log/dstarclients/dstargateway.log"}
+
+command="/usr/bin/dstargateway"
+command_args="-config ${DSTARGATEWAY_CONFIG}"
+command_user="${DSTARGATEWAY_USER}:${DSTARGATEWAY_GROUP}"
+command_background=true
+pidfile="/run/${RC_SVCNAME}.pid"
+start_stop_daemon_args="--stdout ${DSTARGATEWAY_LOGFILE} --stderr ${DSTARGATEWAY_LOGFILE}"
+
+depend() {
+	need net
+	after firewall
+	use logger dns
+	# bind-tools provides host command needed for DNS lookups
+	need localmount
+}
+
+start_pre() {
+	# Check if configuration exists
+	if [ ! -f "${DSTARGATEWAY_CONFIG}" ]; then
+		eerror "Configuration file ${DSTARGATEWAY_CONFIG} does not exist"
+		eerror "Please create it from: cp /etc/dstarclients/dstargateway.cfg.example ${DSTARGATEWAY_CONFIG}"
+		return 1
+	fi
+	
+	# Check if bind-tools is installed (provides host command)
+	if ! command -v host >/dev/null 2>&1; then
+		ewarn "bind-tools is not installed - DNS lookups may fail"
+		ewarn "Install with: apk add bind-tools"
+	fi
+	
+	# Create log directory if it doesn't exist
+	checkpath -d -o "${DSTARGATEWAY_USER}:${DSTARGATEWAY_GROUP}" -m 0755 /var/log/dstarclients
+	
+	# Create log file if it doesn't exist
+	checkpath -f -o "${DSTARGATEWAY_USER}:${DSTARGATEWAY_GROUP}" -m 0644 "${DSTARGATEWAY_LOGFILE}"
+	
+	# Create user if it doesn't exist
+	if ! id -u "${DSTARGATEWAY_USER}" >/dev/null 2>&1; then
+		einfo "Creating user ${DSTARGATEWAY_USER}"
+		adduser -D -H -s /sbin/nologin -G "${DSTARGATEWAY_GROUP}" "${DSTARGATEWAY_USER}" 2>/dev/null || \
+		adduser -D -H -s /sbin/nologin "${DSTARGATEWAY_USER}" 2>/dev/null
+		
+		# Add to dialout group for serial port access (D-Star modems)
+		adduser "${DSTARGATEWAY_USER}" dialout 2>/dev/null || true
+		
+		# Add to audio group for voice announcements
+		adduser "${DSTARGATEWAY_USER}" audio 2>/dev/null || true
+	fi
+	
+	# Create runtime directory
+	checkpath -d -o "${DSTARGATEWAY_USER}:${DSTARGATEWAY_GROUP}" -m 0755 /run/dstargateway
+}
+
+stop_post() {
+	# Give the process a moment to clean up
+	sleep 1
+}
+
+reload() {
+	ebegin "Reloading ${name} configuration"
+	start-stop-daemon --signal HUP --pidfile "${pidfile}"
+	eend $?
+}

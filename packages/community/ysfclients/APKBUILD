@@ -1,0 +1,406 @@
+# Contributor: MW0MWZ <andy@mw0mwz.co.uk>
+# Maintainer: MW0MWZ <andy@mw0mwz.co.uk>
+pkgname=ysfclients
+# Version will be set dynamically by build script (YYYY.MM.DD format)
+pkgver=2025.01.01
+pkgrel=0
+# Git commit will be captured during build
+_gitcommit="b189b73"
+pkgdesc="YSF Clients for Amateur Radio - YSF Gateway, Parrot, DGId Gateway and Cross-Mode converters for digital communications"
+url="https://github.com/g4klx/YSFClients"
+arch="x86_64 armhf aarch64"
+license="GPL-2.0-or-later"
+makedepends="
+	build-base
+	git
+	"
+depends="
+	libgcc
+	libstdc++
+	"
+subpackages="$pkgname-doc"
+source=""
+options="!check"  # No test suite
+giturl="https://github.com/g4klx/YSFClients.git"
+mmdvm_cm_giturl="https://github.com/nostar/MMDVM_CM.git"
+
+# We'll clone the git repos in prepare() instead of using source
+prepare() {
+	# Clean any existing source
+	rm -rf "$srcdir/YSFClients"
+	rm -rf "$srcdir/MMDVM_CM"
+	
+	# Clone the YSFClients repository
+	msg "Cloning YSFClients from $giturl"
+	git clone "$giturl" "$srcdir/YSFClients"
+	cd "$srcdir/YSFClients"
+	
+	# Get the version info that will be embedded in the binary
+	local git_version=$(git describe --tags --always)
+	msg "YSFClients git version: $git_version"
+	
+	# Clone the MMDVM_CM repository for cross-mode converters
+	cd "$srcdir"
+	msg "Cloning MMDVM_CM from $mmdvm_cm_giturl"
+	git clone "$mmdvm_cm_giturl" "$srcdir/MMDVM_CM"
+	cd "$srcdir/MMDVM_CM"
+	
+	# Get the version info for MMDVM_CM
+	local mmdvm_cm_version=$(git describe --tags --always)
+	msg "MMDVM_CM git version: $mmdvm_cm_version"
+	
+	# Apply any patches if needed
+	cd "$srcdir"
+	default_prepare || true
+}
+
+build() {
+	# Build YSFClients components
+	cd "$srcdir/YSFClients"
+	
+	# Build YSFGateway
+	if [ -d "YSFGateway" ]; then
+		msg "Building YSFGateway"
+		cd YSFGateway
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS" \
+			CXXFLAGS="$CXXFLAGS" \
+			LDFLAGS="$LDFLAGS" \
+			-j $(nproc) \
+			all
+		cd ..
+	fi
+	
+	# Build YSFParrot
+	if [ -d "YSFParrot" ]; then
+		msg "Building YSFParrot"
+		cd YSFParrot
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS" \
+			CXXFLAGS="$CXXFLAGS" \
+			LDFLAGS="$LDFLAGS" \
+			-j $(nproc) \
+			all
+		cd ..
+	fi
+	
+	# Build DGIdGateway
+	if [ -d "DGIdGateway" ]; then
+		msg "Building DGIdGateway"
+		cd DGIdGateway
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS" \
+			CXXFLAGS="$CXXFLAGS" \
+			LDFLAGS="$LDFLAGS" \
+			-j $(nproc) \
+			all
+		cd ..
+	fi
+	
+	# Build MMDVM_CM cross-mode converters
+	cd "$srcdir/MMDVM_CM"
+	
+	# Build YSF2DMR
+	if [ -d "YSF2DMR" ]; then
+		msg "Building YSF2DMR"
+		cd YSF2DMR
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS" \
+			CXXFLAGS="$CXXFLAGS" \
+			LDFLAGS="$LDFLAGS" \
+			-j $(nproc) \
+			all
+		cd ..
+	fi
+	
+	# Build YSF2NXDN
+	if [ -d "YSF2NXDN" ]; then
+		msg "Building YSF2NXDN"
+		cd YSF2NXDN
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS" \
+			CXXFLAGS="$CXXFLAGS" \
+			LDFLAGS="$LDFLAGS" \
+			-j $(nproc) \
+			all
+		cd ..
+	fi
+	
+	# Build YSF2P25
+	if [ -d "YSF2P25" ]; then
+		msg "Building YSF2P25"
+		cd YSF2P25
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS" \
+			CXXFLAGS="$CXXFLAGS" \
+			LDFLAGS="$LDFLAGS" \
+			-j $(nproc) \
+			all
+		cd ..
+	fi
+}
+
+package() {
+	# Install YSFClients components
+	cd "$srcdir/YSFClients"
+	
+	# Install YSFGateway binary and files
+	if [ -d "YSFGateway" ]; then
+		cd YSFGateway
+		
+		# Install the main binary
+		if [ -f YSFGateway ]; then
+			install -Dm755 YSFGateway "$pkgdir"/usr/bin/YSFGateway
+		fi
+		
+		# Install configuration sample to /usr/share
+		if [ -f YSFGateway.ini ]; then
+			install -Dm644 YSFGateway.ini "$pkgdir"/usr/share/ysfclients/YSFGateway.ini.sample
+		fi
+		
+		# Also install configuration example to /etc
+		install -dm755 "$pkgdir"/etc/ysfclients
+		if [ -f YSFGateway.ini ]; then
+			install -Dm644 YSFGateway.ini "$pkgdir"/etc/ysfclients/YSFGateway.ini.example
+		fi
+		
+		# Install audio files if they exist
+		if [ -d "Audio" ] || [ -d "audio" ]; then
+			install -dm755 "$pkgdir"/usr/share/ysfclients/audio
+			cp -r [Aa]udio/* "$pkgdir"/usr/share/ysfclients/audio/ 2>/dev/null || true
+		fi
+		
+		cd ..
+	fi
+	
+	# Install YSFParrot binary and files
+	if [ -d "YSFParrot" ]; then
+		cd YSFParrot
+		
+		# Install the main binary
+		if [ -f YSFParrot ]; then
+			install -Dm755 YSFParrot "$pkgdir"/usr/bin/YSFParrot
+		fi
+		
+		# Install configuration sample to /usr/share
+		if [ -f YSFParrot.ini ]; then
+			install -Dm644 YSFParrot.ini "$pkgdir"/usr/share/ysfclients/YSFParrot.ini.sample
+		fi
+		
+		# Also install configuration example to /etc
+		if [ -f YSFParrot.ini ]; then
+			install -Dm644 YSFParrot.ini "$pkgdir"/etc/ysfclients/YSFParrot.ini.example
+		fi
+		
+		cd ..
+	fi
+	
+	# Install DGIdGateway binary and files
+	if [ -d "DGIdGateway" ]; then
+		cd DGIdGateway
+		
+		# Install the main binary
+		if [ -f DGIdGateway ]; then
+			install -Dm755 DGIdGateway "$pkgdir"/usr/bin/DGIdGateway
+		fi
+		
+		# Install configuration sample to /usr/share
+		if [ -f DGIdGateway.ini ]; then
+			install -Dm644 DGIdGateway.ini "$pkgdir"/usr/share/ysfclients/DGIdGateway.ini.sample
+		fi
+		
+		# Also install configuration example to /etc
+		if [ -f DGIdGateway.ini ]; then
+			install -Dm644 DGIdGateway.ini "$pkgdir"/etc/ysfclients/DGIdGateway.ini.example
+		fi
+		
+		cd ..
+	fi
+	
+	# Install MMDVM_CM cross-mode converters
+	cd "$srcdir/MMDVM_CM"
+	
+	# Install YSF2DMR binary and files
+	if [ -d "YSF2DMR" ]; then
+		cd YSF2DMR
+		
+		# Install the main binary
+		if [ -f YSF2DMR ]; then
+			install -Dm755 YSF2DMR "$pkgdir"/usr/bin/YSF2DMR
+		fi
+		
+		# Install configuration sample to /usr/share
+		if [ -f YSF2DMR.ini ]; then
+			install -Dm644 YSF2DMR.ini "$pkgdir"/usr/share/ysfclients/YSF2DMR.ini.sample
+		fi
+		
+		# Also install configuration example to /etc
+		if [ -f YSF2DMR.ini ]; then
+			install -Dm644 YSF2DMR.ini "$pkgdir"/etc/ysfclients/YSF2DMR.ini.example
+		fi
+		
+		# Install DMR ID lookup file if present
+		for dmrid_file in DMRIds.dat DMRIds.csv; do
+			if [ -f "$dmrid_file" ]; then
+				install -Dm644 "$dmrid_file" "$pkgdir"/usr/share/ysfclients/"$dmrid_file".example
+			fi
+		done
+		
+		cd ..
+	fi
+	
+	# Install YSF2NXDN binary and files
+	if [ -d "YSF2NXDN" ]; then
+		cd YSF2NXDN
+		
+		# Install the main binary
+		if [ -f YSF2NXDN ]; then
+			install -Dm755 YSF2NXDN "$pkgdir"/usr/bin/YSF2NXDN
+		fi
+		
+		# Install configuration sample to /usr/share
+		if [ -f YSF2NXDN.ini ]; then
+			install -Dm644 YSF2NXDN.ini "$pkgdir"/usr/share/ysfclients/YSF2NXDN.ini.sample
+		fi
+		
+		# Also install configuration example to /etc
+		if [ -f YSF2NXDN.ini ]; then
+			install -Dm644 YSF2NXDN.ini "$pkgdir"/etc/ysfclients/YSF2NXDN.ini.example
+		fi
+		
+		# Install NXDN ID lookup file if present
+		for nxdn_file in NXDNIds.dat NXDNIds.csv NXDN.csv; do
+			if [ -f "$nxdn_file" ]; then
+				install -Dm644 "$nxdn_file" "$pkgdir"/usr/share/ysfclients/"$nxdn_file".example
+			fi
+		done
+		
+		cd ..
+	fi
+	
+	# Install YSF2P25 binary and files
+	if [ -d "YSF2P25" ]; then
+		cd YSF2P25
+		
+		# Install the main binary
+		if [ -f YSF2P25 ]; then
+			install -Dm755 YSF2P25 "$pkgdir"/usr/bin/YSF2P25
+		fi
+		
+		# Install configuration sample to /usr/share
+		if [ -f YSF2P25.ini ]; then
+			install -Dm644 YSF2P25.ini "$pkgdir"/usr/share/ysfclients/YSF2P25.ini.sample
+		fi
+		
+		# Also install configuration example to /etc
+		if [ -f YSF2P25.ini ]; then
+			install -Dm644 YSF2P25.ini "$pkgdir"/etc/ysfclients/YSF2P25.ini.example
+		fi
+		
+		# Install P25 ID lookup file if present
+		for p25_file in P25Ids.dat P25Ids.csv P25.csv; do
+			if [ -f "$p25_file" ]; then
+				install -Dm644 "$p25_file" "$pkgdir"/usr/share/ysfclients/"$p25_file".example
+			fi
+		done
+		
+		cd ..
+	fi
+	
+	# Go back to YSFClients for documentation
+	cd "$srcdir/YSFClients"
+	
+	# Install systemd service files if they exist (for reference)
+	for service in ysfgateway ysfparrot dgidgateway; do
+		if [ -f linux/systemd/${service}.service ]; then
+			install -Dm644 linux/systemd/${service}.service \
+				"$pkgdir"/usr/share/doc/$pkgname/${service}.service.example
+		fi
+	done
+	
+	# Install README files from YSFClients
+	if [ -f README.md ]; then
+		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README.md
+	elif [ -f README ]; then
+		install -Dm644 README "$pkgdir"/usr/share/doc/$pkgname/README
+	fi
+	
+	# Install individual README files from YSFClients subdirectories
+	for subdir in YSFGateway YSFParrot DGIdGateway; do
+		if [ -f ${subdir}/README.md ]; then
+			install -Dm644 ${subdir}/README.md "$pkgdir"/usr/share/doc/$pkgname/README-${subdir}.md
+		fi
+	done
+	
+	# Install README files from MMDVM_CM
+	cd "$srcdir/MMDVM_CM"
+	if [ -f README.md ]; then
+		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README-MMDVM_CM.md
+	fi
+	
+	# Install individual README files from MMDVM_CM subdirectories
+	for subdir in YSF2DMR YSF2NXDN YSF2P25; do
+		if [ -f ${subdir}/README.md ]; then
+			install -Dm644 ${subdir}/README.md "$pkgdir"/usr/share/doc/$pkgname/README-${subdir}.md
+		elif [ -f ${subdir}/README ]; then
+			install -Dm644 ${subdir}/README "$pkgdir"/usr/share/doc/$pkgname/README-${subdir}
+		fi
+	done
+	
+	cd "$srcdir/YSFClients"
+	
+	# Look for license file
+	mkdir -p "$pkgdir"/usr/share/licenses/$pkgname
+	if [ -f LICENSE ]; then
+		install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	elif [ -f COPYING ]; then
+		install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
+	elif [ -f LICENSE.txt ]; then
+		install -Dm644 LICENSE.txt "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	else
+		# If no license file found, create a reference
+		echo "GPL-2.0-or-later - See upstream repository" > "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	fi
+	
+	# Also check for MMDVM_CM license
+	cd "$srcdir/MMDVM_CM"
+	if [ -f LICENSE ]; then
+		install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE-MMDVM_CM
+	elif [ -f COPYING ]; then
+		install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING-MMDVM_CM
+	fi
+	
+	# Create necessary directories
+	install -dm755 "$pkgdir"/var/log/ysfclients
+	install -dm755 "$pkgdir"/etc/ysfclients
+	install -dm755 "$pkgdir"/usr/share/ysfclients
+	
+	# Install OpenRC init scripts
+	install -Dm755 "$srcdir"/../ysfgateway.initd "$pkgdir"/etc/init.d/ysfgateway
+	install -Dm644 "$srcdir"/../ysfgateway.confd "$pkgdir"/etc/conf.d/ysfgateway
+	install -Dm755 "$srcdir"/../dgidgateway.initd "$pkgdir"/etc/init.d/dgidgateway
+	install -Dm644 "$srcdir"/../dgidgateway.confd "$pkgdir"/etc/conf.d/dgidgateway
+	install -Dm755 "$srcdir"/../ysf2dmr.initd "$pkgdir"/etc/init.d/ysf2dmr
+	install -Dm644 "$srcdir"/../ysf2dmr.confd "$pkgdir"/etc/conf.d/ysf2dmr
+	install -Dm755 "$srcdir"/../ysf2nxdn.initd "$pkgdir"/etc/init.d/ysf2nxdn
+	install -Dm644 "$srcdir"/../ysf2nxdn.confd "$pkgdir"/etc/conf.d/ysf2nxdn
+	install -Dm755 "$srcdir"/../ysf2p25.initd "$pkgdir"/etc/init.d/ysf2p25
+	install -Dm644 "$srcdir"/../ysf2p25.confd "$pkgdir"/etc/conf.d/ysf2p25
+}
+
+doc() {
+	default_doc
+	# Clear the problematic install_if
+	install_if=""
+}
+
+openrc() {
+    default_openrc
+    install_if=
+}

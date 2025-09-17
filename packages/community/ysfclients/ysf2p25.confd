@@ -1,0 +1,11 @@
+# Configuration for YSF2P25 Cross-Mode Converter service
+
+# Configuration file location
+# YSF2P25_CONFIG="/etc/ysfclients/YSF2P25.ini"
+
+# User and group to run as
+# YSF2P25_USER="ysf2p25"
+# YSF2P25_GROUP="ysf2p25"
+
+# Log file location
+# YSF2P25_LOGFILE="/var/log/ysfclients/ysf2p25.log"

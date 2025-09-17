@@ -1,0 +1,358 @@
+# Contributor: MW0MWZ <andy@mw0mwz.co.uk>
+# Maintainer: MW0MWZ <andy@mw0mwz.co.uk>
+pkgname=dstarclients
+pkgver=2025.01.01
+pkgrel=0
+pkgdesc="D-Star Clients for Amateur Radio - ircDDB Gateway, DStarGateway and tools for digital voice communications"
+url="https://github.com/g4klx/ircDDBGateway"
+arch="all"
+license="GPL-2.0-or-later"
+makedepends="
+	wxwidgets-dev
+	linux-headers
+	curl-dev
+	boost-dev
+	"
+depends="
+	bind-tools
+	"
+subpackages="$pkgname-doc $pkgname-openrc"
+source=""
+options="!check" # No test suite
+ircddbgateway_giturl="https://github.com/g4klx/ircDDBGateway.git"
+_gitcommit="6680e4b"
+dstargateway_giturl="https://github.com/F4FXL/DStarGateway.git"
+
+# We'll clone the git repos in prepare() instead of using source
+prepare() {
+	# Clean any existing source
+	rm -rf "$srcdir/ircDDBGateway"
+	rm -rf "$srcdir/DStarGateway"
+	
+	# Clone the ircDDBGateway repository
+	msg "Cloning ircDDBGateway from $ircddbgateway_giturl"
+	git clone "$ircddbgateway_giturl" "$srcdir/ircDDBGateway"
+	cd "$srcdir/ircDDBGateway"
+	
+	# Get the version info that will be embedded in the binary
+	local git_version=$(git describe --tags --always)
+	msg "ircDDBGateway git version: $git_version"
+	
+	# Clone the DStarGateway repository and checkout latest stable tag
+	cd "$srcdir"
+	msg "Cloning DStarGateway from $dstargateway_giturl"
+	git clone "$dstargateway_giturl" "$srcdir/DStarGateway"
+	cd "$srcdir/DStarGateway"
+	
+	# Fetch tags and checkout the latest stable tag
+	git pull -p
+	git fetch --tags
+	local latestTag=$(git describe --tags `git rev-list --tags --max-count=1`)
+	msg "DStarGateway latest stable tag: $latestTag"
+	git checkout "$latestTag"
+	
+	# Apply any other patches if needed
+	cd "$srcdir"
+	default_prepare || true
+}
+
+build() {
+	# Build ircDDBGateway components
+	cd "$srcdir/ircDDBGateway"
+	
+	# Get wxWidgets flags that we'll need for all builds
+	local WX_CPPFLAGS=$(wx-config --cppflags)
+	local WX_LIBS=$(wx-config --libs base)
+	
+	# First build the Common library
+	if [ -d "Common" ]; then
+		msg "Building Common library"
+		cd Common
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS -DDATA_DIR='\"/usr/share/dstarclients\"' -DCONF_DIR='\"/etc/dstarclients\"' -DLOG_DIR='\"/var/log/dstarclients\"' -DBIN_DIR='\"/usr/bin\"' $WX_CPPFLAGS" \
+			CXXFLAGS="$CXXFLAGS -DDATA_DIR='\"/usr/share/dstarclients\"' -DCONF_DIR='\"/etc/dstarclients\"' -DLOG_DIR='\"/var/log/dstarclients\"' -DBIN_DIR='\"/usr/bin\"' $WX_CPPFLAGS" \
+			-j $(nproc) all
+		cd ..
+	fi
+	
+	# Then build the ircDDB library
+	if [ -d "ircDDB" ]; then
+		msg "Building ircDDB library"
+		cd ircDDB
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS $WX_CPPFLAGS" \
+			CXXFLAGS="$CXXFLAGS $WX_CPPFLAGS" \
+			-j $(nproc) all
+		cd ..
+	fi
+	
+	# Build ircDDBGateway daemon
+	if [ -d "ircDDBGateway" ]; then
+		msg "Building ircDDBGateway daemon"
+		cd ircDDBGateway
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS -DDATA_DIR='\"/usr/share/dstarclients\"' -DCONF_DIR='\"/etc/dstarclients\"' -DLOG_DIR='\"/var/log/dstarclients\"' -DBIN_DIR='\"/usr/bin\"' $WX_CPPFLAGS" \
+			CXXFLAGS="$CXXFLAGS -DDATA_DIR='\"/usr/share/dstarclients\"' -DCONF_DIR='\"/etc/dstarclients\"' -DLOG_DIR='\"/var/log/dstarclients\"' -DBIN_DIR='\"/usr/bin\"' $WX_CPPFLAGS" \
+			LDFLAGS="$LDFLAGS $WX_LIBS" \
+			-j $(nproc) all
+		cd ..
+	fi
+	
+	# Build RemoteControl
+	if [ -d "RemoteControl" ]; then
+		msg "Building RemoteControl"
+		cd RemoteControl
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS -DDATA_DIR='\"/usr/share/dstarclients\"' -DBIN_DIR='\"/usr/bin\"' $WX_CPPFLAGS" \
+			CXXFLAGS="$CXXFLAGS -DDATA_DIR='\"/usr/share/dstarclients\"' -DBIN_DIR='\"/usr/bin\"' $WX_CPPFLAGS" \
+			LDFLAGS="$LDFLAGS $WX_LIBS" \
+			-j $(nproc) all
+		cd ..
+	fi
+	
+	# Build StarNetServer
+	if [ -d "StarNetServer" ]; then
+		msg "Building StarNetServer"
+		cd StarNetServer
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS -DDATA_DIR='\"/usr/share/dstarclients\"' -DCONF_DIR='\"/etc/dstarclients\"' -DLOG_DIR='\"/var/log/dstarclients\"' -DBIN_DIR='\"/usr/bin\"' $WX_CPPFLAGS" \
+			CXXFLAGS="$CXXFLAGS -DDATA_DIR='\"/usr/share/dstarclients\"' -DCONF_DIR='\"/etc/dstarclients\"' -DLOG_DIR='\"/var/log/dstarclients\"' -DBIN_DIR='\"/usr/bin\"' $WX_CPPFLAGS" \
+			LDFLAGS="$LDFLAGS $WX_LIBS" \
+			-j $(nproc) all
+		cd ..
+	fi
+	
+	# Build TextTransmit
+	if [ -d "TextTransmit" ]; then
+		msg "Building TextTransmit"
+		cd TextTransmit
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS -DDATA_DIR='\"/usr/share/dstarclients\"' -DBIN_DIR='\"/usr/bin\"' $WX_CPPFLAGS" \
+			CXXFLAGS="$CXXFLAGS -DDATA_DIR='\"/usr/share/dstarclients\"' -DBIN_DIR='\"/usr/bin\"' $WX_CPPFLAGS" \
+			LDFLAGS="$LDFLAGS $WX_LIBS" \
+			-j $(nproc) all
+		cd ..
+	fi
+	
+	# Build TimeServer
+	if [ -d "TimeServer" ]; then
+		msg "Building TimeServer"
+		cd TimeServer
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS -DDATA_DIR='\"/usr/share/dstarclients\"' -DCONF_DIR='\"/etc/dstarclients\"' -DLOG_DIR='\"/var/log/dstarclients\"' -DBIN_DIR='\"/usr/bin\"' $WX_CPPFLAGS" \
+			CXXFLAGS="$CXXFLAGS -DDATA_DIR='\"/usr/share/dstarclients\"' -DCONF_DIR='\"/etc/dstarclients\"' -DLOG_DIR='\"/var/log/dstarclients\"' -DBIN_DIR='\"/usr/bin\"' $WX_CPPFLAGS" \
+			LDFLAGS="$LDFLAGS $WX_LIBS" \
+			-j $(nproc) all
+		cd ..
+	fi
+	
+	# Build VoiceTransmit  
+	if [ -d "VoiceTransmit" ]; then
+		msg "Building VoiceTransmit"
+		cd VoiceTransmit
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS -DDATA_DIR='\"/usr/share/dstarclients\"' -DBIN_DIR='\"/usr/bin\"' $WX_CPPFLAGS" \
+			CXXFLAGS="$CXXFLAGS -DDATA_DIR='\"/usr/share/dstarclients\"' -DBIN_DIR='\"/usr/bin\"' $WX_CPPFLAGS" \
+			LDFLAGS="$LDFLAGS $WX_LIBS" \
+			-j $(nproc) all
+		cd ..
+	fi
+	
+	# Build DStarGateway
+	cd "$srcdir/DStarGateway"
+	msg "Building DStarGateway"
+	
+	# Fix missing stdint.h includes for musl libc compatibility
+	find . -name "*.h" -o -name "*.cpp" | xargs grep -l "int32_t\|uint32_t\|int16_t\|uint16_t\|int8_t\|uint8_t" | while read file; do
+		if ! grep -q "#include <cstdint>\|#include <stdint.h>" "$file"; then
+			sed -i '1i#include <cstdint>' "$file"
+		fi
+	done
+	
+	# Fix syntax error in DRATSServer.cpp (misplaced parenthesis in logging)
+	if [ -f "Common/DRATSServer.cpp" ]; then
+		sed -i 's/CLog::logError("Exception raised in the D-RATS Server thread - \\"%s\\""), message.c_str();/CLog::logError("Exception raised in the D-RATS Server thread - \\"%s\\"", message.c_str());/' Common/DRATSServer.cpp
+	fi
+	
+	# DStarGateway uses standard make - add curl and pthread libraries
+	make clean || true
+	make \
+		CFLAGS="$CFLAGS -DCFG_DIR='\"/etc/dstarclients\"' -DLOG_DIR='\"/var/log/dstarclients\"' -DDATA_DIR='\"/usr/share/dstarclients\"'" \
+		CXXFLAGS="$CXXFLAGS -DCFG_DIR='\"/etc/dstarclients\"' -DLOG_DIR='\"/var/log/dstarclients\"' -DDATA_DIR='\"/usr/share/dstarclients\"'" \
+		CFG_DIR="/etc/dstarclients" \
+		LDFLAGS="$LDFLAGS -lcurl -lpthread" \
+		LIBS="-lcurl -lpthread" \
+		-j $(nproc) \
+		all
+}
+
+package() {
+	# Install ircDDBGateway components
+	cd "$srcdir/ircDDBGateway"
+	
+	# Install main daemon binary
+	if [ -f "ircDDBGateway/ircddbgatewayd" ]; then
+		install -Dm755 "ircDDBGateway/ircddbgatewayd" "$pkgdir/usr/bin/ircddbgatewayd"
+	fi
+	
+	# Install RemoteControl binary
+	if [ -f "RemoteControl/remotecontrold" ]; then
+		install -Dm755 "RemoteControl/remotecontrold" "$pkgdir/usr/bin/remotecontrold"
+	fi
+	
+	# Install StarNetServer binary
+	if [ -f "StarNetServer/starnetserverd" ]; then
+		install -Dm755 "StarNetServer/starnetserverd" "$pkgdir/usr/bin/starnetserverd"
+	fi
+	
+	# Install TextTransmit binary
+	if [ -f "TextTransmit/texttransmitd" ]; then
+		install -Dm755 "TextTransmit/texttransmitd" "$pkgdir/usr/bin/texttransmitd"
+	fi
+	
+	# Install TimeServer binary
+	if [ -f "TimeServer/timeserverd" ]; then
+		install -Dm755 "TimeServer/timeserverd" "$pkgdir/usr/bin/timeserverd"
+	fi
+	
+	# Install VoiceTransmit binary
+	if [ -f "VoiceTransmit/voicetransmitd" ]; then
+		install -Dm755 "VoiceTransmit/voicetransmitd" "$pkgdir/usr/bin/voicetransmitd"
+	fi
+	
+	# Install data files from Data directory
+	install -dm755 "$pkgdir/usr/share/dstarclients"
+	if [ -d "Data" ]; then
+		cd Data
+		for file in *.txt *.ambe *.indx *.dat; do
+			[ -f "$file" ] && install -Dm644 "$file" \
+				"$pkgdir/usr/share/dstarclients/$file"
+		done
+		cd ..
+	fi
+	
+	# Create config directory
+	install -dm755 "$pkgdir/etc/dstarclients"
+	
+	# Install example configs from ircDDBGateway
+	for dir in ircDDBGateway RemoteControl StarNetServer TimeServer; do
+		if [ -d "$dir" ]; then
+			cd "$dir"
+			for conf in *.conf *.cfg *.ini; do
+				[ -f "$conf" ] && install -Dm644 "$conf" \
+					"$pkgdir/etc/dstarclients/${conf}.example"
+			done
+			cd ..
+		fi
+	done
+	
+	# Install DStarGateway
+	cd "$srcdir/DStarGateway"
+	
+	# Install DStarGateway main binary
+	if [ -f "DStarGateway/dstargateway" ]; then
+		install -Dm755 "DStarGateway/dstargateway" "$pkgdir/usr/bin/dstargateway"
+	fi
+	
+	# Install DGWRemoteControl
+	if [ -f "DGWRemoteControl/dgwremotecontrol" ]; then
+		install -Dm755 "DGWRemoteControl/dgwremotecontrol" "$pkgdir/usr/bin/dgwremotecontrol"
+	fi
+	
+	# Install DGWTextTransmit
+	if [ -f "DGWTextTransmit/dgwtexttransmit" ]; then
+		install -Dm755 "DGWTextTransmit/dgwtexttransmit" "$pkgdir/usr/bin/dgwtexttransmit"
+	fi
+	
+	# Install DGWTimeServer
+	if [ -f "DGWTimeServer/dgwtimeserver" ]; then
+		install -Dm755 "DGWTimeServer/dgwtimeserver" "$pkgdir/usr/bin/dgwtimeserver"
+	fi
+	
+	# Install DGWVoiceTransmit
+	if [ -f "DGWVoiceTransmit/dgwvoicetransmit" ]; then
+		install -Dm755 "DGWVoiceTransmit/dgwvoicetransmit" "$pkgdir/usr/bin/dgwvoicetransmit"
+	fi
+	
+	# Install DStarGateway configuration files
+	if [ -f "DStarGateway/dstargateway.cfg" ]; then
+		install -Dm644 "DStarGateway/dstargateway.cfg" "$pkgdir/etc/dstarclients/dstargateway.cfg.example"
+	elif [ -f "dstargateway.cfg" ]; then
+		install -Dm644 "dstargateway.cfg" "$pkgdir/etc/dstarclients/dstargateway.cfg.example"
+	fi
+	
+	# Install DStarGateway data files from Data directory
+	if [ -d "Data" ]; then
+		cd Data
+		for file in *.txt *.dat *.ambe *.indx; do
+			[ -f "$file" ] && install -Dm644 "$file" \
+				"$pkgdir/usr/share/dstarclients/$file"
+		done
+		cd ..
+	fi
+	
+	# Install documentation from both projects
+	cd "$srcdir/ircDDBGateway"
+	install -dm755 "$pkgdir/usr/share/doc/$pkgname"
+	for doc in README* CHANGES* AUTHORS LICENSE; do
+		[ -f "$doc" ] && install -Dm644 "$doc" \
+			"$pkgdir/usr/share/doc/$pkgname/ircDDBGateway-$doc"
+	done
+	
+	cd "$srcdir/DStarGateway"
+	for doc in README* CHANGES* AUTHORS LICENSE *.md; do
+		[ -f "$doc" ] && install -Dm644 "$doc" \
+			"$pkgdir/usr/share/doc/$pkgname/DStarGateway-$doc"
+	done
+	
+	# Look for license files
+	mkdir -p "$pkgdir/usr/share/licenses/$pkgname"
+	cd "$srcdir/ircDDBGateway"
+	if [ -f LICENSE ]; then
+		install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE-ircDDBGateway"
+	elif [ -f COPYING ]; then
+		install -Dm644 COPYING "$pkgdir/usr/share/licenses/$pkgname/COPYING-ircDDBGateway"
+	fi
+	
+	cd "$srcdir/DStarGateway"
+	if [ -f LICENSE ]; then
+		install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE-DStarGateway"
+	elif [ -f COPYING ]; then
+		install -Dm644 COPYING "$pkgdir/usr/share/licenses/$pkgname/COPYING-DStarGateway"
+	elif [ -f LICENSE.txt ]; then
+		install -Dm644 LICENSE.txt "$pkgdir/usr/share/licenses/$pkgname/LICENSE-DStarGateway"
+	else
+		# If no license file found, create a reference
+		echo "GPL-2.0-or-later - See upstream repository" > "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+	fi
+	
+	# Create necessary directories
+	install -dm755 "$pkgdir/var/log/dstarclients"
+	install -dm755 "$pkgdir/etc/dstarclients"
+	install -dm755 "$pkgdir/usr/share/dstarclients"
+	
+	# Install OpenRC files
+	install -Dm755 "$srcdir/../ircddbgateway.initd" "$pkgdir/etc/init.d/ircddbgateway"
+	install -Dm644 "$srcdir/../ircddbgateway.confd" "$pkgdir/etc/conf.d/ircddbgateway"
+	install -Dm755 "$srcdir/../starnetserver.initd" "$pkgdir/etc/init.d/starnetserver"
+	install -Dm644 "$srcdir/../starnetserver.confd" "$pkgdir/etc/conf.d/starnetserver"
+	install -Dm755 "$srcdir/../dstargateway.initd" "$pkgdir/etc/init.d/dstargateway"
+	install -Dm644 "$srcdir/../dstargateway.confd" "$pkgdir/etc/conf.d/dstargateway"
+}
+
+doc() {
+	default_doc
+}
+
+openrc() {
+	default_openrc
+	install_if=
+}

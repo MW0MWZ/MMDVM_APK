@@ -1,0 +1,120 @@
+# Contributor: MW0MWZ <andy@mw0mwz.co.uk>
+# Maintainer: MW0MWZ <andy@mw0mwz.co.uk>
+pkgname=fmclients
+# Version will be set dynamically by build script (YYYY.MM.DD format)
+pkgver=2025.01.01
+pkgrel=0
+# Git commit will be captured during build
+_gitcommit="24c509e"
+pkgdesc="FM Clients for Amateur Radio - FM repeater gateway for digital modes"
+url="https://github.com/g4klx/FMGateway"
+arch="x86_64 armhf aarch64"
+license="GPL-2.0-or-later"
+makedepends="
+	build-base
+	git
+	libmd-dev
+	"
+depends="
+	libgcc
+	libstdc++
+	"
+subpackages="$pkgname-doc $pkgname-openrc"
+source=""
+options="!check"  # No test suite
+giturl="https://github.com/g4klx/FMGateway.git"
+
+# We'll clone the git repo in prepare() instead of using source
+prepare() {
+	# Clean any existing source
+	rm -rf "$srcdir/FMGateway"
+	
+	# Clone the repository
+	msg "Cloning FMGateway from $giturl"
+	git clone "$giturl" "$srcdir/FMGateway"
+	cd "$srcdir/FMGateway"
+	
+	# Get the version info that will be embedded in the binary
+	local git_version=$(git describe --tags --always)
+	msg "FMGateway git version: $git_version"
+	
+	# Apply any patches if needed
+	cd "$srcdir"
+	default_prepare || true
+}
+
+build() {
+	cd "$srcdir/FMGateway"
+	
+	# Clean previous builds
+	make clean
+	
+	# Build with appropriate flags for Alpine
+	make \
+		CFLAGS="$CFLAGS" \
+		CXXFLAGS="$CXXFLAGS" \
+		LDFLAGS="$LDFLAGS" \
+		-j $(nproc) \
+		all
+}
+
+package() {
+	cd "$srcdir/FMGateway"
+	
+	# Install the main binary
+	install -Dm755 FMGateway "$pkgdir"/usr/bin/FMGateway
+	
+	# Install configuration sample to /usr/share
+	install -Dm644 FMGateway.ini "$pkgdir"/usr/share/fmclients/FMGateway.ini.sample
+	
+	# Also install a copy to /etc for actual use
+	install -dm755 "$pkgdir"/etc/fmclients
+	install -Dm644 FMGateway.ini "$pkgdir"/etc/fmclients/FMGateway.ini.example
+	
+	# Install systemd service file if it exists (for reference)
+	if [ -f linux/systemd/fmgateway.service ]; then
+		install -Dm644 linux/systemd/fmgateway.service \
+			"$pkgdir"/usr/share/doc/$pkgname/fmgateway.service.example
+	elif [ -f fmgateway.service ]; then
+		install -Dm644 fmgateway.service \
+			"$pkgdir"/usr/share/doc/$pkgname/fmgateway.service.example
+	fi
+	
+	# Install README if it exists
+	if [ -f README.md ]; then
+		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README.md
+	elif [ -f README ]; then
+		install -Dm644 README "$pkgdir"/usr/share/doc/$pkgname/README
+	fi
+	
+	# Look for license file
+	mkdir -p "$pkgdir"/usr/share/licenses/$pkgname
+	if [ -f LICENSE ]; then
+		install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	elif [ -f COPYING ]; then
+		install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
+	elif [ -f LICENSE.txt ]; then
+		install -Dm644 LICENSE.txt "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	else
+		# If no license file found, create a reference
+		echo "GPL-2.0-or-later - See upstream repository" > "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	fi
+	
+	# Create necessary directories
+	install -dm755 "$pkgdir"/var/log/fmclients
+	install -dm755 "$pkgdir"/etc/fmclients
+	install -dm755 "$pkgdir"/usr/share/fmclients
+	
+	# Install OpenRC init script
+	install -Dm755 "$srcdir"/../fmgateway.initd "$pkgdir"/etc/init.d/fmgateway
+	install -Dm644 "$srcdir"/../fmgateway.confd "$pkgdir"/etc/conf.d/fmgateway
+}
+
+doc() {
+	default_doc
+}
+
+openrc() {
+    default_openrc
+    install_if=
+}

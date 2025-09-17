@@ -1,0 +1,63 @@
+#!/sbin/openrc-run
+# OpenRC init script for ircDDBGateway
+
+name="ircDDBGateway"
+description="IRC DDB Gateway for D-Star digital voice communications"
+
+# Configuration
+: ${IRCDDBGATEWAY_CONFIG:="/etc/dstarclients/ircddbgateway.conf"}
+: ${IRCDDBGATEWAY_USER:="ircddb"}
+: ${IRCDDBGATEWAY_GROUP:="ircddb"}
+: ${IRCDDBGATEWAY_LOGFILE:="/var/log/dstarclients/ircddbgateway.log"}
+
+command="/usr/bin/ircddbgatewayd"
+command_args="-config ${IRCDDBGATEWAY_CONFIG} -daemon"
+command_user="${IRCDDBGATEWAY_USER}:${IRCDDBGATEWAY_GROUP}"
+command_background=true
+pidfile="/run/${RC_SVCNAME}.pid"
+start_stop_daemon_args="--stdout ${IRCDDBGATEWAY_LOGFILE} --stderr ${IRCDDBGATEWAY_LOGFILE}"
+
+depend() {
+	need net
+	after firewall
+	use logger dns
+}
+
+start_pre() {
+	# Check if configuration exists
+	if [ ! -f "${IRCDDBGATEWAY_CONFIG}" ]; then
+		eerror "Configuration file ${IRCDDBGATEWAY_CONFIG} does not exist"
+		eerror "Please create it from: cp /etc/dstarclients/ircddbgateway.conf.example ${IRCDDBGATEWAY_CONFIG}"
+		return 1
+	fi
+	
+	# Create log directory if it doesn't exist
+	checkpath -d -o "${IRCDDBGATEWAY_USER}:${IRCDDBGATEWAY_GROUP}" -m 0755 /var/log/dstarclients
+	
+	# Create log file if it doesn't exist
+	checkpath -f -o "${IRCDDBGATEWAY_USER}:${IRCDDBGATEWAY_GROUP}" -m 0644 "${IRCDDBGATEWAY_LOGFILE}"
+	
+	# Create user if it doesn't exist
+	if ! id -u "${IRCDDBGATEWAY_USER}" >/dev/null 2>&1; then
+		einfo "Creating user ${IRCDDBGATEWAY_USER}"
+		adduser -D -H -s /sbin/nologin -G "${IRCDDBGATEWAY_GROUP}" "${IRCDDBGATEWAY_USER}" 2>/dev/null || \
+		adduser -D -H -s /sbin/nologin "${IRCDDBGATEWAY_USER}" 2>/dev/null
+		
+		# Add to dialout group for serial port access (D-Star modems)
+		adduser "${IRCDDBGATEWAY_USER}" dialout 2>/dev/null || true
+		
+		# Add to audio group for voice announcements
+		adduser "${IRCDDBGATEWAY_USER}" audio 2>/dev/null || true
+	fi
+}
+
+stop_post() {
+	# Give the process a moment to clean up
+	sleep 1
+}
+
+reload() {
+	ebegin "Reloading ${name} configuration"
+	start-stop-daemon --signal HUP --pidfile "${pidfile}"
+	eend $?
+}

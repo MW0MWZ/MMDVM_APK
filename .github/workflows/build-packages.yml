@@ -1,0 +1,907 @@
+name: Build APK Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package to build (or "all" for all packages)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - aprsclients
+          - dmrclients
+          - dstarclients
+          - dstarrepeater
+          - fmclients
+          - mmdvmhost
+          - nxdnclients
+          - p25clients
+          - pocsagclients
+          - ysfclients
+      alpine_version:
+        description: 'Alpine version (or "all" for all versions)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - '3.22'
+          - '3.21'
+      versions_to_keep:
+        description: 'Number of versions to keep per package during cleanup'
+        required: false
+        default: '5'
+        type: string
+      skip_cleanup:
+        description: 'Skip cleanup of old packages'
+        required: false
+        default: false
+        type: boolean
+
+# Prevent concurrent runs that might conflict
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare Build Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      alpine_versions: ${{ steps.versions.outputs.versions }}
+    steps:
+      - name: Determine Alpine versions to build
+        id: versions
+        run: |
+          if [ "${{ github.event.inputs.alpine_version }}" = "all" ] || [ -z "${{ github.event.inputs.alpine_version }}" ]; then
+            # Build for all supported versions
+            echo 'versions=["3.22","3.21"]' >> $GITHUB_OUTPUT
+          else
+            # Build for specific version
+            echo 'versions=["${{ github.event.inputs.alpine_version }}"]' >> $GITHUB_OUTPUT
+          fi
+          
+  build:
+    name: Build ${{ matrix.package }} for ${{ matrix.arch }} on Alpine ${{ matrix.alpine_version }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [x86_64, armhf, aarch64]
+        alpine_version: ${{ fromJson(needs.prepare.outputs.alpine_versions) }}
+        include:
+          - arch: x86_64
+            platform: linux/amd64
+          - arch: armhf
+            platform: linux/arm/v6
+          - arch: aarch64
+            platform: linux/arm64
+      max-parallel: 3
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout gh-pages for version checking
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages-check
+        continue-on-error: true
+
+      - name: Set up QEMU for multi-arch builds
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ matrix.alpine_version }}-${{ matrix.arch }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-${{ matrix.alpine_version }}-${{ matrix.arch }}-
+
+      - name: Determine packages to build
+        id: packages
+        run: |
+          if [ "${{ github.event.inputs.package }}" = "all" ] || [ -z "${{ github.event.inputs.package }}" ]; then
+            # Find all packages
+            PACKAGES=$(find packages/community -name APKBUILD -type f | cut -d'/' -f3 | sort -u | tr '\n' ' ')
+          else
+            PACKAGES="${{ github.event.inputs.package }}"
+          fi
+          echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
+          echo "Building packages: $PACKAGES"
+
+      - name: Build packages
+        env:
+          APK_PRIVATE_KEY: ${{ secrets.APK_PRIVATE_KEY }}
+          ARCH: ${{ matrix.arch }}
+          PLATFORM: ${{ matrix.platform }}
+          ALPINE_VERSION: ${{ matrix.alpine_version }}
+        run: |
+          set -e
+          
+          # Create output directories - now including noarch
+          OUTPUT_DIR="repo/v${ALPINE_VERSION}/community/${ARCH}"
+          NOARCH_DIR="repo/v${ALPINE_VERSION}/community/noarch"
+          mkdir -p "$OUTPUT_DIR"
+          
+          # Only create noarch directory and build noarch packages on x86_64
+          if [ "$ARCH" = "x86_64" ]; then
+            mkdir -p "$NOARCH_DIR"
+            BUILD_NOARCH="yes"
+          else
+            BUILD_NOARCH="no"
+          fi
+          
+          # Build each package
+          for PACKAGE in ${{ steps.packages.outputs.packages }}; do
+            echo "::group::Building $PACKAGE for $ARCH"
+            
+            PACKAGE_DIR="packages/community/$PACKAGE"
+            if [ ! -d "$PACKAGE_DIR" ]; then
+              echo "Package directory $PACKAGE_DIR not found, skipping..."
+              continue
+            fi
+            
+            # Create temp directory for build
+            TEMP_DIR=$(mktemp -d)
+            trap "rm -rf $TEMP_DIR" EXIT
+            
+            # Get primary git URL from APKBUILD
+            GITURL=$(grep "^giturl=" "$PACKAGE_DIR/APKBUILD" | head -1 | cut -d'"' -f2)
+            
+            # Also check for secondary git URLs
+            MMDVM_CM_GITURL=$(grep "^mmdvm_cm_giturl=" "$PACKAGE_DIR/APKBUILD" | head -1 | cut -d'"' -f2)
+            DMRGATEWAY_GITURL=$(grep "^dmrgateway_giturl=" "$PACKAGE_DIR/APKBUILD" | head -1 | cut -d'"' -f2)
+            NXDNCLIENTS_GITURL=$(grep "^nxdnclients_giturl=" "$PACKAGE_DIR/APKBUILD" | head -1 | cut -d'"' -f2)
+            IRCDDBGATEWAY_GITURL=$(grep "^ircddbgateway_giturl=" "$PACKAGE_DIR/APKBUILD" | head -1 | cut -d'"' -f2)
+            DSTARGATEWAY_GITURL=$(grep "^dstargateway_giturl=" "$PACKAGE_DIR/APKBUILD" | head -1 | cut -d'"' -f2)
+            
+            # Determine which URL to use for version detection
+            if [ -n "$GITURL" ]; then
+              echo "Primary git URL: $GITURL"
+              VERSION_URL="$GITURL"
+            elif [ -n "$DMRGATEWAY_GITURL" ]; then
+              echo "Using DMRGateway URL for version: $DMRGATEWAY_GITURL"
+              VERSION_URL="$DMRGATEWAY_GITURL"
+            elif [ -n "$NXDNCLIENTS_GITURL" ]; then
+              echo "Using NXDNClients URL for version: $NXDNCLIENTS_GITURL"
+              VERSION_URL="$NXDNCLIENTS_GITURL"
+            elif [ -n "$IRCDDBGATEWAY_GITURL" ]; then
+              echo "Using ircDDBGateway URL for version: $IRCDDBGATEWAY_GITURL"
+              VERSION_URL="$IRCDDBGATEWAY_GITURL"
+            else
+              echo "No git URL found in APKBUILD, using date-based version"
+              VERSION_URL=""
+            fi
+            
+            # Clone and get version if URL exists
+            if [ -n "$VERSION_URL" ]; then
+              git clone --depth 50 "$VERSION_URL" "$TEMP_DIR/repo"
+              cd "$TEMP_DIR/repo"
+              GIT_COMMIT=$(git rev-parse --short HEAD)
+              COMMIT_DATE=$(git show -s --format=%cd --date=format:'%Y.%m.%d' HEAD)
+              cd - > /dev/null
+              PKG_VERSION="${COMMIT_DATE}"
+            else
+              GIT_COMMIT="unknown"
+              PKG_VERSION="$(date +%Y.%m.%d)"
+            fi
+            
+            # Determine release number by checking ALL architectures and Alpine versions
+            PKG_RELEASE="0"
+            
+            # Check existing packages in gh-pages across ALL architectures (including noarch)
+            for CHECK_VERSION in 3.22 3.21; do
+              for CHECK_ARCH in x86_64 armhf aarch64 noarch; do
+                GH_PAGES_DIR="gh-pages-check/v${CHECK_VERSION}/community/${CHECK_ARCH}"
+                
+                if [ -d "$GH_PAGES_DIR" ]; then
+                  EXISTING_PACKAGES=$(ls -1 "$GH_PAGES_DIR/${PACKAGE}-${PKG_VERSION}-r"*.apk 2>/dev/null | sort -V || true)
+                  
+                  if [ -n "$EXISTING_PACKAGES" ]; then
+                    for PKG_FILE in $EXISTING_PACKAGES; do
+                      RELEASE_NUM=$(echo "$PKG_FILE" | sed -n "s/.*-r\([0-9]*\)\.apk/\1/p")
+                      if [ -n "$RELEASE_NUM" ] && [ "$RELEASE_NUM" -ge "$PKG_RELEASE" ]; then
+                        PKG_RELEASE=$RELEASE_NUM
+                      fi
+                    done
+                  fi
+                fi
+                
+                # Also check what we've already built in this run
+                CHECK_OUTPUT_DIR="repo/v${CHECK_VERSION}/community/${CHECK_ARCH}"
+                if [ -d "$CHECK_OUTPUT_DIR" ]; then
+                  EXISTING_IN_RUN=$(ls -1 "$CHECK_OUTPUT_DIR/${PACKAGE}-${PKG_VERSION}-r"*.apk 2>/dev/null | sort -V || true)
+                  
+                  if [ -n "$EXISTING_IN_RUN" ]; then
+                    for PKG_FILE in $EXISTING_IN_RUN; do
+                      RELEASE_NUM=$(echo "$PKG_FILE" | sed -n "s/.*-r\([0-9]*\)\.apk/\1/p")
+                      if [ -n "$RELEASE_NUM" ] && [ "$RELEASE_NUM" -ge "$PKG_RELEASE" ]; then
+                        PKG_RELEASE=$RELEASE_NUM
+                      fi
+                    done
+                  fi
+                fi
+              done
+            done
+            
+            # Increment the release number for this new build
+            PKG_RELEASE=$((PKG_RELEASE + 1))
+            
+            echo "Package version: ${PKG_VERSION}-r${PKG_RELEASE}"
+            echo "Git commit: ${GIT_COMMIT}"
+            
+            # Copy and update APKBUILD
+            cp "$PACKAGE_DIR/APKBUILD" "$TEMP_DIR/"
+            sed -i "s/^pkgver=.*/pkgver=${PKG_VERSION}/" "$TEMP_DIR/APKBUILD"
+            sed -i "s/^pkgrel=.*/pkgrel=${PKG_RELEASE}/" "$TEMP_DIR/APKBUILD"
+            sed -i "s/^_gitcommit=.*/_gitcommit=\"${GIT_COMMIT}\"/" "$TEMP_DIR/APKBUILD"
+            
+            # Copy ALL supporting files
+            for file in "$PACKAGE_DIR"/*.initd "$PACKAGE_DIR"/*.confd "$PACKAGE_DIR"/*.pre-install "$PACKAGE_DIR"/*.post-install "$PACKAGE_DIR"/*.pre-upgrade "$PACKAGE_DIR"/*.post-upgrade "$PACKAGE_DIR"/*.pre-deinstall "$PACKAGE_DIR"/*.post-deinstall; do
+              if [ -f "$file" ]; then
+                echo "Copying supporting file: $(basename "$file")"
+                cp "$file" "$TEMP_DIR/"
+              fi
+            done
+            
+            # Also check for any patch files
+            for patch in "$PACKAGE_DIR"/*.patch; do
+              if [ -f "$patch" ]; then
+                echo "Copying patch file: $(basename "$patch")"
+                cp "$patch" "$TEMP_DIR/"
+              fi
+            done
+            
+            # Setup keys
+            echo "$APK_PRIVATE_KEY" > "$TEMP_DIR/hamradio.rsa"
+            cp keys/hamradio.rsa.pub "$TEMP_DIR/"
+            
+            # Build in Docker with proper handling of noarch packages
+            docker run --rm \
+              --platform "$PLATFORM" \
+              -v "$TEMP_DIR:/build:ro" \
+              -v "$(pwd)/$OUTPUT_DIR:/output" \
+              -v "$(pwd)/$NOARCH_DIR:/output-noarch" \
+              -e BUILD_NOARCH="$BUILD_NOARCH" \
+              "alpine:${ALPINE_VERSION}" \
+              sh -c '
+                set -e
+                echo "https://dl-cdn.alpinelinux.org/alpine/v'${ALPINE_VERSION}'/community" >> /etc/apk/repositories
+                apk update
+                apk add --no-cache alpine-sdk sudo git file
+                adduser -D builder
+                addgroup builder abuild
+                echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+                
+                # Copy all files from build directory to builder home
+                cp -r /build/* /home/builder/
+                chown -R builder:builder /home/builder/
+                
+                echo "Files in builder directory:"
+                ls -la /home/builder/
+                
+                # Setup abuild keys properly
+                mkdir -p /home/builder/.abuild
+                cp /home/builder/hamradio.rsa /home/builder/.abuild/
+                cp /home/builder/hamradio.rsa.pub /home/builder/.abuild/
+                echo "PACKAGER_PRIVKEY=\"/home/builder/.abuild/hamradio.rsa\"" > /home/builder/.abuild/abuild.conf
+                
+                # Install public key for verification
+                cp /home/builder/hamradio.rsa.pub /etc/apk/keys/
+                
+                cd /home/builder
+                
+                # If not x86_64, remove noarch subpackages from APKBUILD
+                if [ "$BUILD_NOARCH" = "no" ]; then
+                  echo "Skipping noarch subpackages for non-x86_64 build"
+                  sed -i "/^subpackages=/s/\$pkgname-openrc//g" APKBUILD
+                  sed -i "/^subpackages=/s/\$pkgname-doc//g" APKBUILD
+                  sed -i "s/subpackages=\"\s*\"/subpackages=\"\"/g" APKBUILD
+                fi
+                
+                # Run abuild
+                if ! su builder -c "abuild -r"; then
+                  echo "::error::abuild failed for package '${PACKAGE}'"
+                  if [ -d /home/builder/src ]; then
+                    find /home/builder/src -name "*.log" -type f -exec tail -50 {} \; 2>/dev/null || true
+                  fi
+                  exit 1
+                fi
+                
+                # Now intelligently copy packages to the right output directory
+                echo "Processing built packages..."
+                find /home/builder/packages -name "*.apk" -type f | while read pkg; do
+                  PKG_NAME=$(basename "$pkg")
+                  echo "Processing: $PKG_NAME"
+                  
+                  # Extract package info to determine architecture
+                  PKG_INFO=$(tar -xzOf "$pkg" .PKGINFO 2>/dev/null || true)
+                  PKG_ARCH=$(echo "$PKG_INFO" | grep "^arch = " | cut -d" " -f3)
+                  
+                  if [ "$PKG_ARCH" = "noarch" ]; then
+                    if [ "$BUILD_NOARCH" = "yes" ]; then
+                      echo "  -> Copying to noarch: $PKG_NAME"
+                      cp "$pkg" /output-noarch/
+                    else
+                      echo "  -> Skipping noarch package (only built on x86_64)"
+                    fi
+                  else
+                    echo "  -> Copying to '${ARCH}': $PKG_NAME"
+                    cp "$pkg" /output/
+                  fi
+                done
+                
+                echo "Packages in arch-specific output:"
+                ls -la /output/*.apk 2>/dev/null || echo "  No arch-specific packages"
+                echo "Packages in noarch output:"
+                ls -la /output-noarch/*.apk 2>/dev/null || echo "  No noarch packages"
+              '
+            
+            rm -f "$TEMP_DIR/hamradio.rsa"
+            
+            echo "::endgroup::"
+          done
+          
+          echo "Built packages in $OUTPUT_DIR:"
+          ls -la "$OUTPUT_DIR"/*.apk 2>/dev/null || echo "No arch-specific packages found"
+          echo "Built packages in $NOARCH_DIR:"
+          ls -la "$NOARCH_DIR"/*.apk 2>/dev/null || echo "No noarch packages found"
+
+      - name: Generate repository indexes
+        env:
+          APK_PRIVATE_KEY: ${{ secrets.APK_PRIVATE_KEY }}
+          ARCH: ${{ matrix.arch }}
+          PLATFORM: ${{ matrix.platform }}
+          ALPINE_VERSION: ${{ matrix.alpine_version }}
+        run: |
+          set -e
+          
+          # Generate index for arch-specific packages
+          REPO_DIR="repo/v${ALPINE_VERSION}/community/${ARCH}"
+          if ls "$REPO_DIR"/*.apk >/dev/null 2>&1; then
+            echo "::group::Generating repository index for $ARCH"
+            
+            TEMP_DIR=$(mktemp -d)
+            trap "rm -rf $TEMP_DIR" EXIT
+            
+            echo "$APK_PRIVATE_KEY" > "$TEMP_DIR/hamradio.rsa"
+            cp keys/hamradio.rsa.pub "$TEMP_DIR/"
+            
+            docker run --rm \
+              --platform "$PLATFORM" \
+              -v "$TEMP_DIR:/keys:ro" \
+              -v "$(pwd)/$REPO_DIR:/repo" \
+              "alpine:${ALPINE_VERSION}" \
+              sh -c '
+                set -e
+                echo "https://dl-cdn.alpinelinux.org/alpine/v'${ALPINE_VERSION}'/community" >> /etc/apk/repositories
+                apk update
+                apk add --no-cache alpine-sdk
+                mkdir -p /root/.abuild
+                echo "PACKAGER_PRIVKEY=\"/keys/hamradio.rsa\"" > /root/.abuild/abuild.conf
+                cp /keys/hamradio.rsa.pub /etc/apk/keys/
+                cd /repo
+                rm -f APKINDEX.tar.gz APKINDEX.unsigned.tar.gz
+                apk index -o APKINDEX.unsigned.tar.gz *.apk
+                abuild-sign -k /keys/hamradio.rsa APKINDEX.unsigned.tar.gz
+                mv APKINDEX.unsigned.tar.gz APKINDEX.tar.gz
+                ls -la APKINDEX.tar.gz
+              '
+            
+            echo "Repository index generated for $ARCH"
+            echo "::endgroup::"
+          fi
+          
+          # Generate index for noarch packages (only once per Alpine version, not per arch)
+          # We'll do this only on the x86_64 job to avoid duplication
+          if [ "$ARCH" = "x86_64" ]; then
+            NOARCH_DIR="repo/v${ALPINE_VERSION}/community/noarch"
+            if ls "$NOARCH_DIR"/*.apk >/dev/null 2>&1; then
+              echo "::group::Generating repository index for noarch"
+              
+              TEMP_DIR=$(mktemp -d)
+              trap "rm -rf $TEMP_DIR" EXIT
+              
+              echo "$APK_PRIVATE_KEY" > "$TEMP_DIR/hamradio.rsa"
+              cp keys/hamradio.rsa.pub "$TEMP_DIR/"
+              
+              docker run --rm \
+                --platform "linux/amd64" \
+                -v "$TEMP_DIR:/keys:ro" \
+                -v "$(pwd)/$NOARCH_DIR:/repo" \
+                "alpine:${ALPINE_VERSION}" \
+                sh -c '
+                  set -e
+                  echo "https://dl-cdn.alpinelinux.org/alpine/v'${ALPINE_VERSION}'/community" >> /etc/apk/repositories
+                  apk update
+                  apk add --no-cache alpine-sdk
+                  mkdir -p /root/.abuild
+                  echo "PACKAGER_PRIVKEY=\"/keys/hamradio.rsa\"" > /root/.abuild/abuild.conf
+                  cp /keys/hamradio.rsa.pub /etc/apk/keys/
+                  cd /repo
+                  rm -f APKINDEX.tar.gz APKINDEX.unsigned.tar.gz
+                  apk index -o APKINDEX.unsigned.tar.gz *.apk
+                  abuild-sign -k /keys/hamradio.rsa APKINDEX.unsigned.tar.gz
+                  mv APKINDEX.unsigned.tar.gz APKINDEX.tar.gz
+                  ls -la APKINDEX.tar.gz
+                '
+              
+              echo "Repository index generated for noarch"
+              echo "::endgroup::"
+            fi
+          fi
+
+      - name: Generate build metadata
+        run: |
+          REPO_DIR="repo/v${ALPINE_VERSION}/community/${ARCH}"
+          if [ -d "$REPO_DIR" ]; then
+            echo "# Build Metadata" > "$REPO_DIR/BUILD_INFO.md"
+            echo "Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> "$REPO_DIR/BUILD_INFO.md"
+            echo "Alpine Version: ${ALPINE_VERSION}" >> "$REPO_DIR/BUILD_INFO.md"
+            echo "Architecture: ${ARCH}" >> "$REPO_DIR/BUILD_INFO.md"
+            echo "Packages Built: $(ls -1 $REPO_DIR/*.apk 2>/dev/null | wc -l)" >> "$REPO_DIR/BUILD_INFO.md"
+            echo "" >> "$REPO_DIR/BUILD_INFO.md"
+            echo "## Package List" >> "$REPO_DIR/BUILD_INFO.md"
+            ls -1 "$REPO_DIR"/*.apk 2>/dev/null | while read pkg; do
+              echo "- $(basename $pkg)" >> "$REPO_DIR/BUILD_INFO.md"
+            done
+          fi
+          
+          # Also for noarch if we're x86_64
+          if [ "$ARCH" = "x86_64" ]; then
+            NOARCH_DIR="repo/v${ALPINE_VERSION}/community/noarch"
+            if [ -d "$NOARCH_DIR" ] && [ "$(ls -1 $NOARCH_DIR/*.apk 2>/dev/null | wc -l)" -gt 0 ]; then
+              echo "# Build Metadata" > "$NOARCH_DIR/BUILD_INFO.md"
+              echo "Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> "$NOARCH_DIR/BUILD_INFO.md"
+              echo "Alpine Version: ${ALPINE_VERSION}" >> "$NOARCH_DIR/BUILD_INFO.md"
+              echo "Architecture: noarch" >> "$NOARCH_DIR/BUILD_INFO.md"
+              echo "Packages Built: $(ls -1 $NOARCH_DIR/*.apk 2>/dev/null | wc -l)" >> "$NOARCH_DIR/BUILD_INFO.md"
+              echo "" >> "$NOARCH_DIR/BUILD_INFO.md"
+              echo "## Package List" >> "$NOARCH_DIR/BUILD_INFO.md"
+              ls -1 "$NOARCH_DIR"/*.apk 2>/dev/null | while read pkg; do
+                echo "- $(basename $pkg)" >> "$NOARCH_DIR/BUILD_INFO.md"
+              done
+            fi
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-alpine${{ matrix.alpine_version }}-${{ matrix.arch }}
+          path: repo/
+          retention-days: 7
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    if: |
+      always() && 
+      needs.build.result == 'success' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU for multi-arch builds
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Create backup of current repository
+        run: |
+          if [ -d "gh-pages" ]; then
+            BACKUP_NAME="gh-pages-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
+            tar czf "$BACKUP_NAME" gh-pages/
+            echo "Created backup: $BACKUP_NAME"
+            ls -t gh-pages-backup-*.tar.gz 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null || true
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Merge artifacts with existing packages
+        run: |
+          mkdir -p deploy
+          
+          # Copy existing content from gh-pages
+          if [ -d "gh-pages" ]; then
+            echo "Copying existing repository content from gh-pages..."
+            cp -r gh-pages/* deploy/ 2>/dev/null || true
+            find deploy -name "APKINDEX.tar.gz" -type f -delete 2>/dev/null || true
+            echo "Removed old APKINDEX files for regeneration"
+          fi
+          
+          # Merge in new packages from artifacts
+          for arch_dir in artifacts/packages-*/; do
+            if [ -d "$arch_dir" ]; then
+              echo "Merging new builds from $arch_dir"
+              if [ -d "$arch_dir/repo" ]; then
+                cp -r "$arch_dir/repo/"* deploy/ 2>/dev/null || true
+              else
+                cp -r "$arch_dir"/* deploy/ 2>/dev/null || true
+              fi
+            fi
+          done
+          
+          # Ensure public key is present
+          cp keys/hamradio.rsa.pub deploy/hamradio.rsa.pub 2>/dev/null || true
+          
+          # Update static files
+          cp CNAME deploy/ 2>/dev/null || true
+          cp index.html deploy/ 2>/dev/null || true
+          cp _config.yml deploy/ 2>/dev/null || true
+          
+          echo "Repository structure after merge:"
+          for version in 3.22 3.21; do
+            echo "Alpine $version:"
+            for arch in x86_64 armhf aarch64 noarch; do
+              if [ -d "deploy/v$version/community/$arch" ]; then
+                count=$(find "deploy/v$version/community/$arch" -name "*.apk" 2>/dev/null | wc -l)
+                size=$(du -sh "deploy/v$version/community/$arch" 2>/dev/null | cut -f1)
+                echo "  $arch: $count total packages ($size)"
+              fi
+            done
+          done
+
+      - name: Cleanup old package versions
+        if: ${{ github.event.inputs.skip_cleanup != 'true' }}
+        env:
+          VERSIONS_TO_KEEP: ${{ github.event.inputs.versions_to_keep || '5' }}
+        run: |
+          set -e
+          
+          echo "===================================="
+          echo "Starting package cleanup"
+          echo "Configuration: Keep $VERSIONS_TO_KEEP versions per package"
+          echo "===================================="
+          
+          if ! [[ "$VERSIONS_TO_KEEP" =~ ^[0-9]+$ ]] || [ "$VERSIONS_TO_KEEP" -lt 1 ]; then
+            echo "Error: VERSIONS_TO_KEEP must be a positive number"
+            exit 1
+          fi
+          
+          TOTAL_PACKAGES_BEFORE=0
+          TOTAL_PACKAGES_AFTER=0
+          TOTAL_DELETED=0
+          TOTAL_SPACE_FREED=0
+          
+          get_package_base() {
+            local filename=$1
+            local base=${filename%.apk}
+            echo "$base" | sed -E 's/-[0-9]+\.[0-9]+\.[0-9]+-r[0-9]+$//'
+          }
+          
+          # Process each Alpine version and architecture (including noarch)
+          for VERSION in 3.22 3.21; do
+            for ARCH in x86_64 armhf aarch64 noarch; do
+              REPO_DIR="deploy/v${VERSION}/community/${ARCH}"
+              
+              if [ ! -d "$REPO_DIR" ]; then
+                echo "Directory $REPO_DIR does not exist, skipping..."
+                continue
+              fi
+              
+              echo "Processing Alpine $VERSION $ARCH..."
+              
+              cd "$REPO_DIR"
+              
+              PACKAGES_DELETED_IN_ARCH=0
+              SPACE_FREED_IN_ARCH=0
+              
+              APK_FILES=($(ls -1 *.apk 2>/dev/null || true))
+              PACKAGES_BEFORE_IN_ARCH=${#APK_FILES[@]}
+              TOTAL_PACKAGES_BEFORE=$((TOTAL_PACKAGES_BEFORE + PACKAGES_BEFORE_IN_ARCH))
+              
+              if [ ${#APK_FILES[@]} -eq 0 ]; then
+                echo "  No packages found in $ARCH"
+                cd - > /dev/null
+                continue
+              fi
+              
+              echo "  Found $PACKAGES_BEFORE_IN_ARCH packages before cleanup"
+              
+              declare -A PACKAGE_GROUPS
+              
+              for apk_file in "${APK_FILES[@]}"; do
+                base_name=$(get_package_base "$apk_file")
+                if [ -n "$base_name" ]; then
+                  PACKAGE_GROUPS["$base_name"]+="$apk_file "
+                fi
+              done
+              
+              for PACKAGE_BASE in "${!PACKAGE_GROUPS[@]}"; do
+                PACKAGE_FILES="${PACKAGE_GROUPS[$PACKAGE_BASE]}"
+                IFS=' ' read -ra VERSION_ARRAY <<< "$PACKAGE_FILES"
+                SORTED_VERSIONS=($(ls -1t "${VERSION_ARRAY[@]}" 2>/dev/null || true))
+                VERSION_COUNT=${#SORTED_VERSIONS[@]}
+                
+                if [ "$VERSION_COUNT" -gt "$VERSIONS_TO_KEEP" ]; then
+                  echo "  Package: $PACKAGE_BASE has $VERSION_COUNT versions (keeping $VERSIONS_TO_KEEP)"
+                  
+                  for ((i=$VERSIONS_TO_KEEP; i<${#SORTED_VERSIONS[@]}; i++)); do
+                    VERSION_FILE="${SORTED_VERSIONS[$i]}"
+                    FILE_SIZE_BYTES=$(stat -c%s "$VERSION_FILE" 2>/dev/null || echo "0")
+                    FILE_SIZE_HUMAN=$(du -h "$VERSION_FILE" 2>/dev/null | cut -f1)
+                    
+                    echo "    Deleting: $VERSION_FILE ($FILE_SIZE_HUMAN)"
+                    rm -f "$VERSION_FILE"
+                    PACKAGES_DELETED_IN_ARCH=$((PACKAGES_DELETED_IN_ARCH + 1))
+                    SPACE_FREED_IN_ARCH=$((SPACE_FREED_IN_ARCH + FILE_SIZE_BYTES))
+                  done
+                fi
+              done
+              
+              unset PACKAGE_GROUPS
+              
+              PACKAGES_AFTER_IN_ARCH=$(ls -1 *.apk 2>/dev/null | wc -l)
+              TOTAL_PACKAGES_AFTER=$((TOTAL_PACKAGES_AFTER + PACKAGES_AFTER_IN_ARCH))
+              
+              TOTAL_DELETED=$((TOTAL_DELETED + PACKAGES_DELETED_IN_ARCH))
+              TOTAL_SPACE_FREED=$((TOTAL_SPACE_FREED + SPACE_FREED_IN_ARCH))
+              
+              if [ "$PACKAGES_DELETED_IN_ARCH" -gt 0 ]; then
+                SPACE_FREED_MB=$((SPACE_FREED_IN_ARCH / 1024 / 1024))
+                echo "  Deleted $PACKAGES_DELETED_IN_ARCH old package versions from $ARCH (freed ${SPACE_FREED_MB}MB)"
+              else
+                echo "  No old packages to delete for $ARCH"
+              fi
+              
+              cd - > /dev/null
+            done
+          done
+          
+          if [ "$TOTAL_SPACE_FREED" -gt 0 ]; then
+            TOTAL_SPACE_FREED_MB=$((TOTAL_SPACE_FREED / 1024 / 1024))
+            TOTAL_SPACE_FREED_HUMAN="${TOTAL_SPACE_FREED_MB}MB"
+          else
+            TOTAL_SPACE_FREED_HUMAN="0MB"
+          fi
+          
+          echo ""
+          echo "====================================="
+          echo "Cleanup Summary:"
+          echo "  Packages before: $TOTAL_PACKAGES_BEFORE"
+          echo "  Packages after: $TOTAL_PACKAGES_AFTER"
+          echo "  Packages deleted: $TOTAL_DELETED"
+          echo "  Space freed: $TOTAL_SPACE_FREED_HUMAN"
+          echo "====================================="
+          
+          echo "CLEANUP_TOTAL_DELETED=$TOTAL_DELETED" >> $GITHUB_ENV
+          echo "CLEANUP_SPACE_FREED=$TOTAL_SPACE_FREED_HUMAN" >> $GITHUB_ENV
+
+      - name: Generate repository indexes for ALL packages
+        env:
+          APK_PRIVATE_KEY: ${{ secrets.APK_PRIVATE_KEY }}
+        run: |
+          set -e
+          
+          echo "Generating fresh APKINDEX for ALL packages (after cleanup)"
+          
+          # Generate indexes for each Alpine version and architecture (including noarch)
+          for VERSION in 3.22 3.21; do
+            for ARCH in x86_64 armhf aarch64 noarch; do
+              REPO_DIR="deploy/v${VERSION}/community/${ARCH}"
+              
+              if [ ! -d "$REPO_DIR" ]; then
+                echo "Directory $REPO_DIR does not exist, skipping..."
+                continue
+              fi
+              
+              PACKAGE_COUNT=$(find "$REPO_DIR" -maxdepth 1 -name "*.apk" -type f 2>/dev/null | wc -l)
+              
+              if [ "$PACKAGE_COUNT" -eq 0 ]; then
+                echo "No packages found in $REPO_DIR, skipping..."
+                continue
+              fi
+              
+              echo "::group::Generating index for Alpine $VERSION $ARCH ($PACKAGE_COUNT packages)"
+              
+              # Determine Docker platform (use amd64 for noarch)
+              case "$ARCH" in
+                x86_64|noarch)
+                  PLATFORM="linux/amd64"
+                  ;;
+                armhf)
+                  PLATFORM="linux/arm/v6"
+                  ;;
+                aarch64)
+                  PLATFORM="linux/arm64"
+                  ;;
+              esac
+              
+              TEMP_DIR=$(mktemp -d)
+              trap "rm -rf $TEMP_DIR" EXIT
+              
+              echo "$APK_PRIVATE_KEY" > "$TEMP_DIR/hamradio.rsa"
+              cp keys/hamradio.rsa.pub "$TEMP_DIR/"
+              
+              docker run --rm \
+                --platform "$PLATFORM" \
+                -v "$TEMP_DIR:/keys:ro" \
+                -v "$(pwd)/$REPO_DIR:/repo" \
+                "alpine:${VERSION}" \
+                sh -c '
+                  set -e
+                  echo "https://dl-cdn.alpinelinux.org/alpine/v'${VERSION}'/community" >> /etc/apk/repositories
+                  apk update
+                  apk add --no-cache alpine-sdk
+                  mkdir -p /root/.abuild
+                  echo "PACKAGER_PRIVKEY=\"/keys/hamradio.rsa\"" > /root/.abuild/abuild.conf
+                  cp /keys/hamradio.rsa.pub /etc/apk/keys/
+                  cd /repo
+                  
+                  rm -f APKINDEX.tar.gz APKINDEX.unsigned.tar.gz
+                  
+                  echo "Indexing the following packages:"
+                  ls -1 *.apk | sort
+                  
+                  apk index -o APKINDEX.unsigned.tar.gz *.apk
+                  abuild-sign -k /keys/hamradio.rsa APKINDEX.unsigned.tar.gz
+                  mv APKINDEX.unsigned.tar.gz APKINDEX.tar.gz
+                  
+                  echo "Index created, verifying package count:"
+                  tar -xzOf APKINDEX.tar.gz APKINDEX | grep -c "^P:" || true
+                  echo " packages in index"
+                '
+              
+              echo "Repository index generated for Alpine $VERSION $ARCH"
+              ls -la "$REPO_DIR"/APKINDEX.tar.gz
+              
+              rm -rf "$TEMP_DIR"
+              
+              echo "::endgroup::"
+            done
+          done
+          
+          # Generate repository statistics
+          echo "# Repository Statistics" > deploy/STATS.md
+          echo "Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> deploy/STATS.md
+          echo "" >> deploy/STATS.md
+          
+          TOTAL_PACKAGES=0
+          
+          for version in 3.22 3.21; do
+            echo "## Alpine $version" >> deploy/STATS.md
+            for arch in x86_64 armhf aarch64 noarch; do
+              if [ -d "deploy/v$version/community/$arch" ]; then
+                count=$(find "deploy/v$version/community/$arch" -name "*.apk" 2>/dev/null | wc -l)
+                size=$(du -sh "deploy/v$version/community/$arch" 2>/dev/null | cut -f1)
+                echo "- **$arch**: $count packages ($size)" >> deploy/STATS.md
+                TOTAL_PACKAGES=$((TOTAL_PACKAGES + count))
+              fi
+            done
+            echo "" >> deploy/STATS.md
+          done
+          
+          echo "## Total" >> deploy/STATS.md
+          echo "- **Total Packages**: $TOTAL_PACKAGES" >> deploy/STATS.md
+          echo "- **Repository Size**: $(du -sh deploy 2>/dev/null | cut -f1)" >> deploy/STATS.md
+          
+          if [ -n "${CLEANUP_TOTAL_DELETED}" ] && [ "${CLEANUP_TOTAL_DELETED}" != "0" ]; then
+            echo "" >> deploy/STATS.md
+            echo "## Last Cleanup" >> deploy/STATS.md
+            echo "- **Packages Removed**: ${CLEANUP_TOTAL_DELETED}" >> deploy/STATS.md
+            echo "- **Space Freed**: ${CLEANUP_SPACE_FREED}" >> deploy/STATS.md
+          fi
+          
+          echo ""
+          echo "Final deployment summary:"
+          for version in 3.22 3.21; do
+            echo "Alpine $version:"
+            for arch in x86_64 armhf aarch64 noarch; do
+              if [ -d "deploy/v$version/community/$arch" ]; then
+                count=$(find "deploy/v$version/community/$arch" -name "*.apk" 2>/dev/null | wc -l)
+                if [ -f "deploy/v$version/community/$arch/APKINDEX.tar.gz" ]; then
+                  echo "  $arch: $count packages (indexed ✓)"
+                else
+                  echo "  $arch: $count packages (no index)"
+                fi
+              fi
+            done
+          done
+
+      - name: Update APK repository configuration instructions
+        run: |
+          {
+            echo "# Ham Radio APK Repository"
+            echo ""
+            echo "## Repository Configuration"
+            echo ""
+            echo "To use this repository, add the following to your /etc/apk/repositories:"
+            echo ""
+            echo "### For Alpine 3.22:"
+            echo '```'
+            echo "https://apk.pistar.uk/v3.22/community/x86_64"
+            echo "https://apk.pistar.uk/v3.22/community/noarch"
+            echo '```'
+            echo ""
+            echo "For ARM systems, replace x86_64 with:"
+            echo "- armhf for 32-bit ARM (Raspberry Pi Zero/1/2)"
+            echo "- aarch64 for 64-bit ARM (Raspberry Pi 3/4/5)"
+            echo ""
+            echo "### For Alpine 3.21:"
+            echo '```'
+            echo "https://apk.pistar.uk/v3.21/community/x86_64"
+            echo "https://apk.pistar.uk/v3.21/community/noarch"
+            echo '```'
+            echo ""
+            echo "## Adding the Repository Key"
+            echo ""
+            echo '```bash'
+            echo "wget -O /etc/apk/keys/hamradio.rsa.pub https://apk.pistar.uk/hamradio.rsa.pub"
+            echo '```'
+            echo ""
+            echo "## Installing Packages"
+            echo ""
+            echo '```bash'
+            echo "apk update"
+            echo "apk add mmdvmhost"
+            echo '```'
+            echo ""
+            echo "## Available Packages"
+            echo ""
+            echo "See [STATS.md](STATS.md) for a complete list of available packages."
+          } > deploy/README.md
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./deploy
+          keep_files: false
+          cname: apk.pistar.uk
+          commit_message: |
+            Deploy APK repository - build #${{ github.run_number }}
+            ${{ env.CLEANUP_TOTAL_DELETED && format('Cleaned up {0} old packages, freed {1}', env.CLEANUP_TOTAL_DELETED, env.CLEANUP_SPACE_FREED) || '' }}
+      
+      - name: Purge Cloudflare Cache
+        if: success()
+        env:
+          CLOUDFLARE_ZONE: ${{ secrets.CLOUDFLARE_ZONE }}
+          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+        run: |
+          if [ -n "$CLOUDFLARE_ZONE" ] && [ -n "$CLOUDFLARE_TOKEN" ]; then
+            echo "Purging Cloudflare cache for APKINDEX files..."
+            
+            # Purge all APKINDEX files (including noarch)
+            FILES_TO_PURGE='["https://apk.pistar.uk/v3.22/community/x86_64/APKINDEX.tar.gz","https://apk.pistar.uk/v3.22/community/armhf/APKINDEX.tar.gz","https://apk.pistar.uk/v3.22/community/aarch64/APKINDEX.tar.gz","https://apk.pistar.uk/v3.22/community/noarch/APKINDEX.tar.gz","https://apk.pistar.uk/v3.21/community/x86_64/APKINDEX.tar.gz","https://apk.pistar.uk/v3.21/community/armhf/APKINDEX.tar.gz","https://apk.pistar.uk/v3.21/community/aarch64/APKINDEX.tar.gz","https://apk.pistar.uk/v3.21/community/noarch/APKINDEX.tar.gz"]'
+            
+            RESPONSE=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE/purge_cache" \
+              -H "Authorization: Bearer $CLOUDFLARE_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "{\"files\":$FILES_TO_PURGE}")
+            
+            if echo "$RESPONSE" | grep -q '"success":true'; then
+              echo "Successfully purged Cloudflare cache"
+            else
+              echo "Warning: Cloudflare cache purge may have failed"
+              echo "Response: $RESPONSE"
+            fi
+          else
+            echo "Cloudflare credentials not configured, skipping cache purge"
+          fi

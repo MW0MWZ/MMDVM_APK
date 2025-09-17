@@ -1,0 +1,186 @@
+# Contributor: MW0MWZ <andy@mw0mwz.co.uk>
+# Maintainer: MW0MWZ <andy@mw0mwz.co.uk>
+pkgname=p25clients
+# Version will be set dynamically by build script (YYYY.MM.DD format)
+pkgver=2025.01.01
+pkgrel=0
+# Git commit will be captured during build
+_gitcommit="72b85eb"
+pkgdesc="P25 Clients for Amateur Radio - P25 Gateway and Parrot for digital radio communications"
+url="https://github.com/g4klx/P25Clients"
+arch="x86_64 armhf aarch64"
+license="GPL-2.0-or-later"
+makedepends="
+	build-base
+	git
+	"
+depends="
+	libgcc
+	libstdc++
+	"
+subpackages="$pkgname-doc $pkgname-openrc"
+source=""
+options="!check"  # No test suite
+giturl="https://github.com/g4klx/P25Clients.git"
+
+# We'll clone the git repo in prepare() instead of using source
+prepare() {
+	# Clean any existing source
+	rm -rf "$srcdir/P25Clients"
+	
+	# Clone the repository
+	msg "Cloning P25Clients from $giturl"
+	git clone "$giturl" "$srcdir/P25Clients"
+	cd "$srcdir/P25Clients"
+	
+	# Get the version info that will be embedded in the binary
+	local git_version=$(git describe --tags --always)
+	msg "P25Clients git version: $git_version"
+	
+	# Apply any patches if needed
+	cd "$srcdir"
+	default_prepare || true
+}
+
+build() {
+	cd "$srcdir/P25Clients"
+	
+	# Build P25Gateway
+	if [ -d "P25Gateway" ]; then
+		msg "Building P25Gateway"
+		cd P25Gateway
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS" \
+			CXXFLAGS="$CXXFLAGS" \
+			LDFLAGS="$LDFLAGS" \
+			-j $(nproc) \
+			all
+		cd ..
+	fi
+	
+	# Build P25Parrot
+	if [ -d "P25Parrot" ]; then
+		msg "Building P25Parrot"
+		cd P25Parrot
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS" \
+			CXXFLAGS="$CXXFLAGS" \
+			LDFLAGS="$LDFLAGS" \
+			-j $(nproc) \
+			all
+		cd ..
+	fi
+}
+
+package() {
+	cd "$srcdir/P25Clients"
+	
+	# Install P25Gateway binary and files
+	if [ -d "P25Gateway" ]; then
+		cd P25Gateway
+		
+		# Install the main binary
+		if [ -f P25Gateway ]; then
+			install -Dm755 P25Gateway "$pkgdir"/usr/bin/P25Gateway
+		fi
+		
+		# Install configuration sample to /usr/share
+		if [ -f P25Gateway.ini ]; then
+			install -Dm644 P25Gateway.ini "$pkgdir"/usr/share/p25clients/P25Gateway.ini.sample
+		fi
+		
+		# Also install configuration example to /etc
+		install -dm755 "$pkgdir"/etc/p25clients
+		if [ -f P25Gateway.ini ]; then
+			install -Dm644 P25Gateway.ini "$pkgdir"/etc/p25clients/P25Gateway.ini.example
+		fi
+		
+		# Install audio files if they exist
+		if [ -d "Audio" ] || [ -d "audio" ]; then
+			install -dm755 "$pkgdir"/usr/share/p25clients/audio
+			cp -r [Aa]udio/* "$pkgdir"/usr/share/p25clients/audio/ 2>/dev/null || true
+		fi
+		
+		cd ..
+	fi
+	
+	# Install P25Parrot binary and files
+	if [ -d "P25Parrot" ]; then
+		cd P25Parrot
+		
+		# Install the main binary
+		if [ -f P25Parrot ]; then
+			install -Dm755 P25Parrot "$pkgdir"/usr/bin/P25Parrot
+		fi
+		
+		# Install configuration sample to /usr/share
+		if [ -f P25Parrot.ini ]; then
+			install -Dm644 P25Parrot.ini "$pkgdir"/usr/share/p25clients/P25Parrot.ini.sample
+		fi
+		
+		# Also install configuration example to /etc
+		if [ -f P25Parrot.ini ]; then
+			install -Dm644 P25Parrot.ini "$pkgdir"/etc/p25clients/P25Parrot.ini.example
+		fi
+		
+		cd ..
+	fi
+	
+	# Install systemd service files if they exist (for reference)
+	if [ -f linux/systemd/p25gateway.service ]; then
+		install -Dm644 linux/systemd/p25gateway.service \
+			"$pkgdir"/usr/share/doc/$pkgname/p25gateway.service.example
+	fi
+	if [ -f linux/systemd/p25parrot.service ]; then
+		install -Dm644 linux/systemd/p25parrot.service \
+			"$pkgdir"/usr/share/doc/$pkgname/p25parrot.service.example
+	fi
+	
+	# Install README files
+	if [ -f README.md ]; then
+		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README.md
+	elif [ -f README ]; then
+		install -Dm644 README "$pkgdir"/usr/share/doc/$pkgname/README
+	fi
+	
+	# Install individual README files from subdirectories
+	if [ -f P25Gateway/README.md ]; then
+		install -Dm644 P25Gateway/README.md "$pkgdir"/usr/share/doc/$pkgname/README-P25Gateway.md
+	fi
+	if [ -f P25Parrot/README.md ]; then
+		install -Dm644 P25Parrot/README.md "$pkgdir"/usr/share/doc/$pkgname/README-P25Parrot.md
+	fi
+	
+	# Look for license file
+	mkdir -p "$pkgdir"/usr/share/licenses/$pkgname
+	if [ -f LICENSE ]; then
+		install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	elif [ -f COPYING ]; then
+		install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
+	elif [ -f LICENSE.txt ]; then
+		install -Dm644 LICENSE.txt "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	else
+		# If no license file found, create a reference
+		echo "GPL-2.0-or-later - See upstream repository" > "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	fi
+	
+	# Create necessary directories
+	install -dm755 "$pkgdir"/var/log/p25clients
+	install -dm755 "$pkgdir"/etc/p25clients
+	install -dm755 "$pkgdir"/usr/share/p25clients
+	
+	# Install OpenRC init script - single service for both binaries
+	install -Dm755 "$srcdir"/../p25gateway.initd "$pkgdir"/etc/init.d/p25gateway
+	install -Dm644 "$srcdir"/../p25gateway.confd "$pkgdir"/etc/conf.d/p25gateway
+}
+
+doc() {
+	default_doc
+}
+
+openrc() {
+	default_openrc
+	install_if=
+}

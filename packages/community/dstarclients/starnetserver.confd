@@ -1,0 +1,11 @@
+# Configuration for StarNetServer service
+
+# Configuration file location
+# STARNETSERVER_CONFIG="/etc/dstarclients/starnetserver.conf"
+
+# User and group to run as
+# STARNETSERVER_USER="starnet"
+# STARNETSERVER_GROUP="starnet"
+
+# Log file location
+# STARNETSERVER_LOGFILE="/var/log/dstarclients/starnetserver.log"

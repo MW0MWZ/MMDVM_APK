@@ -1,0 +1,11 @@
+# Configuration for YSF2DMR Cross-Mode Converter service
+
+# Configuration file location
+# YSF2DMR_CONFIG="/etc/ysfclients/YSF2DMR.ini"
+
+# User and group to run as
+# YSF2DMR_USER="ysf2dmr"
+# YSF2DMR_GROUP="ysf2dmr"
+
+# Log file location
+# YSF2DMR_LOGFILE="/var/log/ysfclients/ysf2dmr.log"

@@ -1,0 +1,57 @@
+#!/sbin/openrc-run
+# OpenRC init script for NXDN2DMR Cross-Mode Converter
+
+name="NXDN2DMR"
+description="NXDN to DMR cross-mode converter for Amateur Radio"
+
+# Configuration
+: ${NXDN2DMR_CONFIG:="/etc/nxdnclients/NXDN2DMR.ini"}
+: ${NXDN2DMR_USER:="nxdn2dmr"}
+: ${NXDN2DMR_GROUP:="nxdn2dmr"}
+: ${NXDN2DMR_LOGFILE:="/var/log/nxdnclients/nxdn2dmr.log"}
+
+command="/usr/bin/NXDN2DMR"
+command_args="${NXDN2DMR_CONFIG}"
+command_user="${NXDN2DMR_USER}:${NXDN2DMR_GROUP}"
+command_background=true
+pidfile="/run/${RC_SVCNAME}.pid"
+start_stop_daemon_args="--stdout ${NXDN2DMR_LOGFILE} --stderr ${NXDN2DMR_LOGFILE}"
+
+depend() {
+	need net
+	after firewall nxdngateway
+	use logger dns
+}
+
+start_pre() {
+	# Check if configuration exists
+	if [ ! -f "${NXDN2DMR_CONFIG}" ]; then
+		eerror "NXDN2DMR configuration file ${NXDN2DMR_CONFIG} does not exist"
+		eerror "Please create it from: cp /etc/nxdnclients/NXDN2DMR.ini.example ${NXDN2DMR_CONFIG}"
+		return 1
+	fi
+	
+	# Create log directory if it doesn't exist
+	checkpath -d -o "${NXDN2DMR_USER}:${NXDN2DMR_GROUP}" -m 0755 /var/log/nxdnclients
+	
+	# Create log file if it doesn't exist
+	checkpath -f -o "${NXDN2DMR_USER}:${NXDN2DMR_GROUP}" -m 0644 "${NXDN2DMR_LOGFILE}"
+	
+	# Create user if it doesn't exist
+	if ! id -u "${NXDN2DMR_USER}" >/dev/null 2>&1; then
+		einfo "Creating user ${NXDN2DMR_USER}"
+		adduser -D -H -s /sbin/nologin -G "${NXDN2DMR_GROUP}" "${NXDN2DMR_USER}" 2>/dev/null || \
+		adduser -D -H -s /sbin/nologin "${NXDN2DMR_USER}" 2>/dev/null
+	fi
+}
+
+stop_post() {
+	# Give the process a moment to clean up
+	sleep 1
+}
+
+reload() {
+	ebegin "Reloading ${name} configuration"
+	start-stop-daemon --signal HUP --pidfile "${pidfile}"
+	eend $?
+}

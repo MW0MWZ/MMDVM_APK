@@ -1,0 +1,473 @@
+name: Check Upstream Updates
+
+on:
+  schedule:
+    # Run twice daily at 2 AM and 2 PM UTC (reduced from every 6 hours)
+    - cron: '0 2,14 * * *'
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: 'Specific packages to check (leave empty for all)'
+        required: false
+        type: string
+        default: ''
+      alpine_version:
+        description: 'Alpine version to build for'
+        required: false
+        type: choice
+        default: 'all'
+        options:
+          - 'all'
+          - '3.22'
+          - '3.21'
+
+# Prevent concurrent update checks
+concurrency:
+  group: update-check-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-updates:
+    runs-on: ubuntu-latest
+    outputs:
+      packages_to_build: ${{ steps.check.outputs.packages }}
+      has_updates: ${{ steps.check.outputs.has_updates }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Check for upstream updates
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ALPINE_VERSION: ${{ github.event.inputs.alpine_version || 'all' }}
+          SPECIFIC_PACKAGES: ${{ github.event.inputs.packages }}
+        run: |
+          set -e
+          
+          # Function to get latest commit from GitHub (with authentication)
+          get_github_commit() {
+            local url=$1
+            local repo=$(echo "$url" | sed 's|.*github.com/||' | sed 's|\.git$||')
+            
+            # Try to get latest commit from default branch with auth token
+            for branch in main master develop; do
+              commit=$(curl -s -H "Accept: application/vnd.github.v3+json" \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                "https://api.github.com/repos/${repo}/commits/${branch}" | \
+                grep '"sha"' | head -1 | cut -d'"' -f4 | cut -c1-7)
+              
+              if [ -n "$commit" ]; then
+                echo "$commit"
+                return
+              fi
+            done
+            
+            # If all branches fail, try to get the default branch
+            default_branch=$(curl -s -H "Accept: application/vnd.github.v3+json" \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              "https://api.github.com/repos/${repo}" | \
+              grep '"default_branch"' | cut -d'"' -f4)
+            
+            if [ -n "$default_branch" ]; then
+              commit=$(curl -s -H "Accept: application/vnd.github.v3+json" \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                "https://api.github.com/repos/${repo}/commits/${default_branch}" | \
+                grep '"sha"' | head -1 | cut -d'"' -f4 | cut -c1-7)
+              
+              if [ -n "$commit" ]; then
+                echo "$commit"
+                return
+              fi
+            fi
+            
+            echo ""
+          }
+          
+          # Function to check if package needs update
+          check_package_update() {
+            local package=$1
+            local apkbuild="packages/community/${package}/APKBUILD"
+            
+            if [ ! -f "$apkbuild" ]; then
+              echo "APKBUILD not found for $package"
+              return 1
+            fi
+            
+            # Get git URL from APKBUILD and track which variable it came from
+            local giturl=$(grep "^giturl=" "$apkbuild" | head -1 | cut -d'"' -f2)
+            local giturl_var="giturl"
+            
+            # Check for package-specific git URLs if main one not found
+            if [ -z "$giturl" ]; then
+              for var in mmdvm_cm_giturl dmrgateway_giturl nxdnclients_giturl ircddbgateway_giturl dstargateway_giturl; do
+                giturl=$(grep "^${var}=" "$apkbuild" | head -1 | cut -d'"' -f2)
+                if [ -n "$giturl" ]; then
+                  giturl_var="$var"
+                  break
+                fi
+              done
+            fi
+            
+            if [ -z "$giturl" ]; then
+              echo "No git URL found for $package"
+              return 1
+            fi
+            
+            echo "Checking $package from $giturl"
+            
+            # Get current commit - use the appropriate commit variable based on which URL we found
+            local current_commit=""
+            if [ "$giturl_var" = "giturl" ]; then
+              # Standard commit variable
+              current_commit=$(grep "^_gitcommit=" "$apkbuild" | cut -d'"' -f2)
+            else
+              # Package-specific commit variable (e.g., _ircddbgateway_gitcommit for ircddbgateway_giturl)
+              local commit_var="_${giturl_var%_giturl}_gitcommit"
+              current_commit=$(grep "^${commit_var}=" "$apkbuild" | cut -d'"' -f2)
+              
+              # If specific commit var doesn't exist, try generic _gitcommit as fallback
+              if [ -z "$current_commit" ]; then
+                current_commit=$(grep "^_gitcommit=" "$apkbuild" | cut -d'"' -f2)
+              fi
+            fi
+            
+            # Get latest commit from upstream
+            local latest_commit=$(get_github_commit "$giturl")
+            
+            if [ -z "$latest_commit" ]; then
+              echo "Could not fetch latest commit for $package (API rate limit or network issue?)"
+              return 1
+            fi
+            
+            echo "  Current: ${current_commit:-unknown}"
+            echo "  Latest:  $latest_commit"
+            
+            # Check if update is needed
+            if [ "$current_commit" != "$latest_commit" ]; then
+              echo "  ✅ UPDATE AVAILABLE!"
+              # Store which variable needs updating
+              echo "${package}:${giturl_var}:${current_commit}:${latest_commit}" >> /tmp/package_updates.txt
+              return 0
+            else
+              echo "  ✓ Up to date"
+              return 1
+            fi
+          }
+          
+          # Check API rate limit before starting
+          echo "Checking GitHub API rate limit..."
+          RATE_LIMIT=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+            "https://api.github.com/rate_limit" | \
+            grep -A2 '"core"' | grep '"remaining"' | cut -d: -f2 | tr -d ' ,')
+          
+          if [ -n "$RATE_LIMIT" ]; then
+            echo "API calls remaining: $RATE_LIMIT"
+            if [ "$RATE_LIMIT" -lt "50" ]; then
+              echo "⚠️  Warning: Low API rate limit remaining. Consider reducing check frequency."
+            fi
+          fi
+          
+          # Determine which packages to check
+          if [ -n "$SPECIFIC_PACKAGES" ]; then
+            PACKAGES="$SPECIFIC_PACKAGES"
+          else
+            # Find all packages
+            PACKAGES=$(find packages/community -name APKBUILD -type f | cut -d'/' -f3 | sort -u | tr '\n' ' ')
+          fi
+          
+          echo "Checking packages: $PACKAGES"
+          echo "================================================"
+          echo ""
+          
+          # Clear the updates file
+          > /tmp/package_updates.txt
+          
+          # Check each package
+          PACKAGES_TO_BUILD=""
+          CHECKED_COUNT=0
+          UPDATED_COUNT=0
+          
+          for package in $PACKAGES; do
+            CHECKED_COUNT=$((CHECKED_COUNT + 1))
+            if check_package_update "$package"; then
+              PACKAGES_TO_BUILD="$PACKAGES_TO_BUILD $package"
+              UPDATED_COUNT=$((UPDATED_COUNT + 1))
+            fi
+            echo ""
+          done
+          
+          # Trim whitespace
+          PACKAGES_TO_BUILD=$(echo "$PACKAGES_TO_BUILD" | xargs)
+          
+          # Summary
+          echo "================================================"
+          echo "Summary:"
+          echo "  Packages checked: $CHECKED_COUNT"
+          echo "  Updates available: $UPDATED_COUNT"
+          
+          # Set outputs
+          if [ -n "$PACKAGES_TO_BUILD" ]; then
+            echo "Packages with updates: $PACKAGES_TO_BUILD"
+            echo "packages=$PACKAGES_TO_BUILD" >> $GITHUB_OUTPUT
+            echo "has_updates=true" >> $GITHUB_OUTPUT
+            
+            # Create summary for GitHub Actions
+            echo "## 📦 Package Updates Available" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The following packages have upstream updates:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            for pkg in $PACKAGES_TO_BUILD; do
+              echo "- \`$pkg\`" >> $GITHUB_STEP_SUMMARY
+            done
+          else
+            echo "No packages need updating"
+            echo "packages=" >> $GITHUB_OUTPUT
+            echo "has_updates=false" >> $GITHUB_OUTPUT
+            
+            echo "## ✅ All Packages Up to Date" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "No upstream updates detected." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  update-apkbuilds:
+    needs: check-updates
+    if: needs.check-updates.outputs.has_updates == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Update APKBUILD files with latest commits
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGES: ${{ needs.check-updates.outputs.packages_to_build }}
+        run: |
+          set -e
+          
+          # Function to get latest commit from GitHub
+          get_github_commit() {
+            local url=$1
+            local repo=$(echo "$url" | sed 's|.*github.com/||' | sed 's|\.git$||')
+            
+            # Try to get latest commit from default branch with auth
+            for branch in main master develop; do
+              commit=$(curl -s -H "Accept: application/vnd.github.v3+json" \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                "https://api.github.com/repos/${repo}/commits/${branch}" | \
+                grep '"sha"' | head -1 | cut -d'"' -f4 | cut -c1-7)
+              
+              if [ -n "$commit" ]; then
+                echo "$commit"
+                return
+              fi
+            done
+            
+            # Try default branch
+            default_branch=$(curl -s -H "Accept: application/vnd.github.v3+json" \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              "https://api.github.com/repos/${repo}" | \
+              grep '"default_branch"' | cut -d'"' -f4)
+            
+            if [ -n "$default_branch" ]; then
+              commit=$(curl -s -H "Accept: application/vnd.github.v3+json" \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                "https://api.github.com/repos/${repo}/commits/${default_branch}" | \
+                grep '"sha"' | head -1 | cut -d'"' -f4 | cut -c1-7)
+              
+              echo "$commit"
+            fi
+          }
+          
+          # Update each package
+          UPDATED_PACKAGES=""
+          UPDATE_DETAILS=""
+          
+          for package in $PACKAGES; do
+            APKBUILD="packages/community/${package}/APKBUILD"
+            
+            if [ ! -f "$APKBUILD" ]; then
+              echo "Skipping $package - APKBUILD not found"
+              continue
+            fi
+            
+            # Get git URL and track which variable it came from
+            giturl=$(grep "^giturl=" "$APKBUILD" | head -1 | cut -d'"' -f2)
+            giturl_var="giturl"
+            
+            if [ -z "$giturl" ]; then
+              for var in mmdvm_cm_giturl dmrgateway_giturl nxdnclients_giturl ircddbgateway_giturl dstargateway_giturl; do
+                giturl=$(grep "^${var}=" "$APKBUILD" | head -1 | cut -d'"' -f2)
+                if [ -n "$giturl" ]; then
+                  giturl_var="$var"
+                  break
+                fi
+              done
+            fi
+            
+            if [ -z "$giturl" ]; then
+              echo "Skipping $package - no git URL found"
+              continue
+            fi
+            
+            # Get current commit using the appropriate variable
+            if [ "$giturl_var" = "giturl" ]; then
+              current_commit=$(grep "^_gitcommit=" "$APKBUILD" | cut -d'"' -f2)
+              commit_var="_gitcommit"
+            else
+              # Try package-specific commit variable first
+              commit_var="_${giturl_var%_giturl}_gitcommit"
+              current_commit=$(grep "^${commit_var}=" "$APKBUILD" | cut -d'"' -f2)
+              
+              # Fallback to generic if not found
+              if [ -z "$current_commit" ]; then
+                commit_var="_gitcommit"
+                current_commit=$(grep "^${commit_var}=" "$APKBUILD" | cut -d'"' -f2)
+              fi
+            fi
+            
+            # Get latest commit
+            latest_commit=$(get_github_commit "$giturl")
+            
+            if [ -z "$latest_commit" ]; then
+              echo "Skipping $package - could not fetch latest commit"
+              continue
+            fi
+            
+            if [ "$current_commit" = "$latest_commit" ]; then
+              echo "Skipping $package - already up to date"
+              continue
+            fi
+            
+            echo "Updating $package: ${current_commit} -> ${latest_commit}"
+            echo "  Using commit variable: ${commit_var}"
+            
+            # Update the appropriate commit variable in APKBUILD
+            if grep -q "^${commit_var}=" "$APKBUILD"; then
+              # Variable exists, update it
+              sed -i "s/^${commit_var}=.*/${commit_var}=\"${latest_commit}\"/" "$APKBUILD"
+            else
+              # Variable doesn't exist, add it after the giturl line
+              sed -i "/^${giturl_var}=/a ${commit_var}=\"${latest_commit}\"" "$APKBUILD"
+            fi
+            
+            UPDATED_PACKAGES="$UPDATED_PACKAGES $package"
+            UPDATE_DETAILS="${UPDATE_DETAILS}\n- ${package}: ${current_commit:0:7} → ${latest_commit}"
+          done
+          
+          # Trim whitespace
+          UPDATED_PACKAGES=$(echo "$UPDATED_PACKAGES" | xargs)
+          
+          # Commit changes if any
+          if [ -n "$UPDATED_PACKAGES" ]; then
+            git config --local user.email "github-actions[bot]@users.noreply.github.com"
+            git config --local user.name "github-actions[bot]"
+            
+            git add packages/community/*/APKBUILD
+            
+            if git diff --staged --quiet; then
+              echo "No changes to commit"
+            else
+              # Create detailed commit message
+              echo "chore: update packages to latest upstream commits" > commit_msg.txt
+              echo "" >> commit_msg.txt
+              echo "Updated packages:" >> commit_msg.txt
+              echo -e "${UPDATE_DETAILS}" >> commit_msg.txt
+              echo "" >> commit_msg.txt
+              echo "[automated update check]" >> commit_msg.txt
+              
+              git commit -F commit_msg.txt
+              rm -f commit_msg.txt
+              
+              git push
+              
+              echo "✅ Committed updates for: $UPDATED_PACKAGES"
+              
+              # Add to GitHub Actions summary
+              echo "## 🔄 APKBUILDs Updated" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "The following packages were updated:" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo -e "$UPDATE_DETAILS" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "No packages were updated"
+          fi
+
+  trigger-build:
+    needs: [check-updates, update-apkbuilds]
+    if: needs.check-updates.outputs.has_updates == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Wait for commit to propagate
+        run: sleep 10
+        
+      - name: Trigger package build workflow
+        uses: actions/github-script@v7
+        env:
+          PACKAGES: ${{ needs.check-updates.outputs.packages_to_build }}
+          ALPINE_VERSION: ${{ github.event.inputs.alpine_version || 'all' }}
+        with:
+          script: |
+            const packages = process.env.PACKAGES.trim();
+            const alpineVersion = process.env.ALPINE_VERSION;
+            
+            if (!packages) {
+              console.log('No packages to build');
+              return;
+            }
+            
+            // For efficiency, if multiple packages need building, build all at once
+            const packageList = packages.split(' ');
+            
+            if (packageList.length > 3) {
+              // If many packages need updating, trigger one build for all
+              console.log(`Triggering build for all ${packageList.length} packages on Alpine ${alpineVersion}`);
+              
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'build-packages.yml',
+                ref: 'main',
+                inputs: {
+                  package: 'all',
+                  alpine_version: alpineVersion
+                }
+              });
+              
+              console.log(`Triggered single build for all packages`);
+            } else {
+              // For few packages, trigger individual builds
+              for (const pkg of packageList) {
+                console.log(`Triggering build for ${pkg} on Alpine ${alpineVersion}`);
+                
+                await github.rest.actions.createWorkflowDispatch({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  workflow_id: 'build-packages.yml',
+                  ref: 'main',
+                  inputs: {
+                    package: pkg,
+                    alpine_version: alpineVersion
+                  }
+                });
+                
+                // Small delay between triggers to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              }
+              
+              console.log(`Triggered builds for ${packageList.length} package(s)`);
+            }
+            
+            // Add summary
+            const summary = `## 🚀 Build Triggered\n\nTriggered builds for the following packages:\n${packageList.map(p => `- \`${p}\``).join('\n')}`;
+            await core.summary.addRaw(summary).write();

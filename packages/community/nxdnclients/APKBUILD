@@ -1,0 +1,281 @@
+# Contributor: MW0MWZ <andy@mw0mwz.co.uk>
+# Maintainer: MW0MWZ <andy@mw0mwz.co.uk>
+pkgname=nxdnclients
+# Version will be set dynamically by build script (YYYY.MM.DD format)
+pkgver=2025.01.01
+pkgrel=0
+# Git commit will be captured during build
+_gitcommit="1dd5383"
+pkgdesc="NXDN Clients for Amateur Radio - NXDN Gateway, Parrot and Cross-Mode converters for digital communications"
+url="https://github.com/g4klx/NXDNClients"
+arch="x86_64 armhf aarch64"
+license="GPL-2.0-or-later"
+makedepends="
+	build-base
+	git
+	"
+depends="
+	libgcc
+	libstdc++
+	"
+subpackages="$pkgname-doc $pkgname-openrc"
+source=""
+options="!check"  # No test suite
+nxdnclients_giturl="https://github.com/g4klx/NXDNClients.git"
+mmdvm_cm_giturl="https://github.com/nostar/MMDVM_CM.git"
+
+# We'll clone the git repos in prepare() instead of using source
+prepare() {
+	# Clean any existing source
+	rm -rf "$srcdir/NXDNClients"
+	rm -rf "$srcdir/MMDVM_CM"
+	
+	# Clone the NXDNClients repository
+	msg "Cloning NXDNClients from $nxdnclients_giturl"
+	git clone "$nxdnclients_giturl" "$srcdir/NXDNClients"
+	cd "$srcdir/NXDNClients"
+	
+	# Get the version info that will be embedded in the binary
+	local git_version=$(git describe --tags --always)
+	msg "NXDNClients git version: $git_version"
+	
+	# Clone the MMDVM_CM repository for cross-mode converters
+	cd "$srcdir"
+	msg "Cloning MMDVM_CM from $mmdvm_cm_giturl"
+	git clone "$mmdvm_cm_giturl" "$srcdir/MMDVM_CM"
+	cd "$srcdir/MMDVM_CM"
+	
+	# Get the version info for MMDVM_CM
+	local mmdvm_cm_version=$(git describe --tags --always)
+	msg "MMDVM_CM git version: $mmdvm_cm_version"
+	
+	# Apply any patches if needed
+	cd "$srcdir"
+	default_prepare || true
+}
+
+build() {
+	# Build NXDNClients components
+	cd "$srcdir/NXDNClients"
+	
+	# Build NXDNGateway
+	if [ -d "NXDNGateway" ]; then
+		msg "Building NXDNGateway"
+		cd NXDNGateway
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS" \
+			CXXFLAGS="$CXXFLAGS" \
+			LDFLAGS="$LDFLAGS" \
+			-j $(nproc) \
+			all
+		cd ..
+	fi
+	
+	# Build NXDNParrot
+	if [ -d "NXDNParrot" ]; then
+		msg "Building NXDNParrot"
+		cd NXDNParrot
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS" \
+			CXXFLAGS="$CXXFLAGS" \
+			LDFLAGS="$LDFLAGS" \
+			-j $(nproc) \
+			all
+		cd ..
+	fi
+	
+	# Build MMDVM_CM cross-mode converter
+	cd "$srcdir/MMDVM_CM"
+	
+	# Build NXDN2DMR
+	if [ -d "NXDN2DMR" ]; then
+		msg "Building NXDN2DMR"
+		cd NXDN2DMR
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS" \
+			CXXFLAGS="$CXXFLAGS" \
+			LDFLAGS="$LDFLAGS" \
+			-j $(nproc) \
+			all
+		cd ..
+	fi
+}
+
+package() {
+	# Install NXDNClients components
+	cd "$srcdir/NXDNClients"
+	
+	# Install NXDNGateway binary and files
+	if [ -d "NXDNGateway" ]; then
+		cd NXDNGateway
+		
+		# Install the main binary
+		if [ -f NXDNGateway ]; then
+			install -Dm755 NXDNGateway "$pkgdir"/usr/bin/NXDNGateway
+		fi
+		
+		# Install configuration sample to /usr/share
+		if [ -f NXDNGateway.ini ]; then
+			install -Dm644 NXDNGateway.ini "$pkgdir"/usr/share/nxdnclients/NXDNGateway.ini.sample
+		fi
+		
+		# Also install configuration example to /etc
+		install -dm755 "$pkgdir"/etc/nxdnclients
+		if [ -f NXDNGateway.ini ]; then
+			install -Dm644 NXDNGateway.ini "$pkgdir"/etc/nxdnclients/NXDNGateway.ini.example
+		fi
+		
+		# Install audio files if they exist
+		if [ -d "Audio" ] || [ -d "audio" ]; then
+			install -dm755 "$pkgdir"/usr/share/nxdnclients/audio
+			cp -r [Aa]udio/* "$pkgdir"/usr/share/nxdnclients/audio/ 2>/dev/null || true
+		fi
+		
+		# Install NXDN hosts file if present
+		if [ -f NXDNHosts.txt ]; then
+			install -Dm644 NXDNHosts.txt "$pkgdir"/usr/share/nxdnclients/NXDNHosts.txt
+		fi
+		
+		cd ..
+	fi
+	
+	# Install NXDNParrot binary and files
+	if [ -d "NXDNParrot" ]; then
+		cd NXDNParrot
+		
+		# Install the main binary
+		if [ -f NXDNParrot ]; then
+			install -Dm755 NXDNParrot "$pkgdir"/usr/bin/NXDNParrot
+		fi
+		
+		# Install configuration sample to /usr/share
+		if [ -f NXDNParrot.ini ]; then
+			install -Dm644 NXDNParrot.ini "$pkgdir"/usr/share/nxdnclients/NXDNParrot.ini.sample
+		fi
+		
+		# Also install configuration example to /etc
+		if [ -f NXDNParrot.ini ]; then
+			install -Dm644 NXDNParrot.ini "$pkgdir"/etc/nxdnclients/NXDNParrot.ini.example
+		fi
+		
+		cd ..
+	fi
+	
+	# Install MMDVM_CM cross-mode converter
+	cd "$srcdir/MMDVM_CM"
+	
+	# Install NXDN2DMR binary and files
+	if [ -d "NXDN2DMR" ]; then
+		cd NXDN2DMR
+		
+		# Install the main binary
+		if [ -f NXDN2DMR ]; then
+			install -Dm755 NXDN2DMR "$pkgdir"/usr/bin/NXDN2DMR
+		fi
+		
+		# Install configuration sample to /usr/share
+		if [ -f NXDN2DMR.ini ]; then
+			install -Dm644 NXDN2DMR.ini "$pkgdir"/usr/share/nxdnclients/NXDN2DMR.ini.sample
+		fi
+		
+		# Also install configuration example to /etc
+		if [ -f NXDN2DMR.ini ]; then
+			install -Dm644 NXDN2DMR.ini "$pkgdir"/etc/nxdnclients/NXDN2DMR.ini.example
+		fi
+		
+		# Install ID lookup files if present
+		for id_file in NXDNIds.dat NXDNIds.csv NXDN.csv DMRIds.dat DMRIds.csv; do
+			if [ -f "$id_file" ]; then
+				install -Dm644 "$id_file" "$pkgdir"/usr/share/nxdnclients/"$id_file".example
+			fi
+		done
+		
+		cd ..
+	fi
+	
+	# Install systemd service files if they exist (for reference)
+	cd "$srcdir/NXDNClients"
+	for service in nxdngateway nxdnparrot; do
+		if [ -f linux/systemd/${service}.service ]; then
+			install -Dm644 linux/systemd/${service}.service \
+				"$pkgdir"/usr/share/doc/$pkgname/${service}.service.example
+		fi
+	done
+	
+	# Install README files from NXDNClients
+	if [ -f README.md ]; then
+		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README.md
+	elif [ -f README ]; then
+		install -Dm644 README "$pkgdir"/usr/share/doc/$pkgname/README
+	fi
+	
+	# Install individual README files from NXDNClients subdirectories
+	for subdir in NXDNGateway NXDNParrot; do
+		if [ -f ${subdir}/README.md ]; then
+			install -Dm644 ${subdir}/README.md "$pkgdir"/usr/share/doc/$pkgname/README-${subdir}.md
+		fi
+	done
+	
+	# Install README files from MMDVM_CM
+	cd "$srcdir/MMDVM_CM"
+	if [ -f README.md ]; then
+		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README-MMDVM_CM.md
+	fi
+	
+	# Install individual README files from MMDVM_CM subdirectories
+	for subdir in NXDN2DMR; do
+		if [ -f ${subdir}/README.md ]; then
+			install -Dm644 ${subdir}/README.md "$pkgdir"/usr/share/doc/$pkgname/README-${subdir}.md
+		elif [ -f ${subdir}/README ]; then
+			install -Dm644 ${subdir}/README "$pkgdir"/usr/share/doc/$pkgname/README-${subdir}
+		fi
+	done
+	
+	cd "$srcdir/NXDNClients"
+	
+	# Look for license file
+	mkdir -p "$pkgdir"/usr/share/licenses/$pkgname
+	if [ -f LICENSE ]; then
+		install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	elif [ -f COPYING ]; then
+		install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
+	elif [ -f LICENSE.txt ]; then
+		install -Dm644 LICENSE.txt "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	else
+		# If no license file found, create a reference
+		echo "GPL-2.0-or-later - See upstream repository" > "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	fi
+	
+	# Also check for MMDVM_CM license
+	cd "$srcdir/MMDVM_CM"
+	if [ -f LICENSE ]; then
+		install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE-MMDVM_CM
+	elif [ -f COPYING ]; then
+		install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING-MMDVM_CM
+	fi
+	
+	# Create necessary directories
+	install -dm755 "$pkgdir"/var/log/nxdnclients
+	install -dm755 "$pkgdir"/etc/nxdnclients
+	install -dm755 "$pkgdir"/usr/share/nxdnclients
+	
+	# Install OpenRC init scripts
+	install -Dm755 "$srcdir"/../nxdngateway.initd "$pkgdir"/etc/init.d/nxdngateway
+	install -Dm644 "$srcdir"/../nxdngateway.confd "$pkgdir"/etc/conf.d/nxdngateway
+	install -Dm755 "$srcdir"/../nxdnparrot.initd "$pkgdir"/etc/init.d/nxdnparrot
+	install -Dm644 "$srcdir"/../nxdnparrot.confd "$pkgdir"/etc/conf.d/nxdnparrot
+	install -Dm755 "$srcdir"/../nxdn2dmr.initd "$pkgdir"/etc/init.d/nxdn2dmr
+	install -Dm644 "$srcdir"/../nxdn2dmr.confd "$pkgdir"/etc/conf.d/nxdn2dmr
+}
+
+doc() {
+	default_doc
+}
+
+openrc() {
+    default_openrc
+    install_if=
+}

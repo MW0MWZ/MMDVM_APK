@@ -1,0 +1,225 @@
+#!/sbin/openrc-run
+# OpenRC init script for P25 Gateway (P25Gateway and P25Parrot)
+
+name="P25 Gateway"
+description="P25 Gateway and Parrot for Amateur Radio digital communications"
+
+# Configuration
+: ${P25GATEWAY_CONFIG:="/etc/p25clients/P25Gateway.ini"}
+: ${P25PARROT_CONFIG:="/etc/p25clients/P25Parrot.ini"}
+: ${P25CLIENTS_USER:="p25"}
+: ${P25CLIENTS_GROUP:="p25"}
+: ${P25GATEWAY_LOGFILE:="/var/log/p25clients/p25gateway.log"}
+: ${P25PARROT_LOGFILE:="/var/log/p25clients/p25parrot.log"}
+
+# Enable/disable individual services
+: ${ENABLE_P25GATEWAY:="yes"}
+: ${ENABLE_P25PARROT:="yes"}
+
+# Process management
+p25gateway_pidfile="/run/p25gateway.pid"
+p25parrot_pidfile="/run/p25parrot.pid"
+
+depend() {
+	need net
+	after firewall
+	use logger dns
+}
+
+start_pre() {
+	local errors=0
+	
+	# Check P25Gateway configuration if enabled
+	if yesno "$ENABLE_P25GATEWAY"; then
+		if [ ! -f "${P25GATEWAY_CONFIG}" ]; then
+			eerror "P25Gateway configuration file ${P25GATEWAY_CONFIG} does not exist"
+			eerror "Please create it from: cp /etc/p25clients/P25Gateway.ini.example ${P25GATEWAY_CONFIG}"
+			errors=$((errors + 1))
+		fi
+	fi
+	
+	# Check P25Parrot configuration if enabled
+	if yesno "$ENABLE_P25PARROT"; then
+		if [ ! -f "${P25PARROT_CONFIG}" ]; then
+			eerror "P25Parrot configuration file ${P25PARROT_CONFIG} does not exist"
+			eerror "Please create it from: cp /etc/p25clients/P25Parrot.ini.example ${P25PARROT_CONFIG}"
+			errors=$((errors + 1))
+		fi
+	fi
+	
+	# Exit if any configuration errors
+	if [ $errors -gt 0 ]; then
+		return 1
+	fi
+	
+	# Create log directory if it doesn't exist
+	checkpath -d -o "${P25CLIENTS_USER}:${P25CLIENTS_GROUP}" -m 0755 /var/log/p25clients
+	
+	# Create log files if they don't exist
+	checkpath -f -o "${P25CLIENTS_USER}:${P25CLIENTS_GROUP}" -m 0644 "${P25GATEWAY_LOGFILE}"
+	checkpath -f -o "${P25CLIENTS_USER}:${P25CLIENTS_GROUP}" -m 0644 "${P25PARROT_LOGFILE}"
+	
+	# Create user if it doesn't exist
+	if ! id -u "${P25CLIENTS_USER}" >/dev/null 2>&1; then
+		einfo "Creating user ${P25CLIENTS_USER}"
+		adduser -D -H -s /sbin/nologin -G "${P25CLIENTS_GROUP}" "${P25CLIENTS_USER}" 2>/dev/null || \
+		adduser -D -H -s /sbin/nologin "${P25CLIENTS_USER}" 2>/dev/null
+	fi
+}
+
+start() {
+	local started=0
+	
+	ebegin "Starting P25 Clients"
+	
+	# Start P25Gateway if enabled
+	if yesno "$ENABLE_P25GATEWAY"; then
+		einfo "Starting P25Gateway"
+		start-stop-daemon --start --quiet \
+			--pidfile "${p25gateway_pidfile}" \
+			--make-pidfile \
+			--background \
+			--user "${P25CLIENTS_USER}" \
+			--stdout "${P25GATEWAY_LOGFILE}" \
+			--stderr "${P25GATEWAY_LOGFILE}" \
+			--exec /usr/bin/P25Gateway -- "${P25GATEWAY_CONFIG}"
+		
+		if [ $? -eq 0 ]; then
+			started=$((started + 1))
+		else
+			eerror "Failed to start P25Gateway"
+		fi
+	fi
+	
+	# Start P25Parrot if enabled
+	if yesno "$ENABLE_P25PARROT"; then
+		einfo "Starting P25Parrot"
+		start-stop-daemon --start --quiet \
+			--pidfile "${p25parrot_pidfile}" \
+			--make-pidfile \
+			--background \
+			--user "${P25CLIENTS_USER}" \
+			--stdout "${P25PARROT_LOGFILE}" \
+			--stderr "${P25PARROT_LOGFILE}" \
+			--exec /usr/bin/P25Parrot -- "${P25PARROT_CONFIG}"
+		
+		if [ $? -eq 0 ]; then
+			started=$((started + 1))
+		else
+			eerror "Failed to start P25Parrot"
+		fi
+	fi
+	
+	if [ $started -gt 0 ]; then
+		einfo "Started $started P25 service(s)"
+		eend 0
+	else
+		eerror "Failed to start any P25 services"
+		eend 1
+	fi
+}
+
+stop() {
+	local stopped=0
+	
+	ebegin "Stopping P25 Clients"
+	
+	# Stop P25Gateway
+	if [ -f "${p25gateway_pidfile}" ]; then
+		einfo "Stopping P25Gateway"
+		start-stop-daemon --stop --quiet \
+			--pidfile "${p25gateway_pidfile}" \
+			--retry TERM/30/KILL/5
+		
+		if [ $? -eq 0 ]; then
+			rm -f "${p25gateway_pidfile}"
+			stopped=$((stopped + 1))
+		fi
+	fi
+	
+	# Stop P25Parrot
+	if [ -f "${p25parrot_pidfile}" ]; then
+		einfo "Stopping P25Parrot"
+		start-stop-daemon --stop --quiet \
+			--pidfile "${p25parrot_pidfile}" \
+			--retry TERM/30/KILL/5
+		
+		if [ $? -eq 0 ]; then
+			rm -f "${p25parrot_pidfile}"
+			stopped=$((stopped + 1))
+		fi
+	fi
+	
+	einfo "Stopped $stopped P25 service(s)"
+	eend 0
+}
+
+status() {
+	local running=0
+	local total=0
+	
+	# Check P25Gateway status
+	if yesno "$ENABLE_P25GATEWAY"; then
+		total=$((total + 1))
+		if [ -f "${p25gateway_pidfile}" ]; then
+			if kill -0 "$(cat ${p25gateway_pidfile})" 2>/dev/null; then
+				einfo "P25Gateway is running (PID $(cat ${p25gateway_pidfile}))"
+				running=$((running + 1))
+			else
+				einfo "P25Gateway is not running (stale PID file)"
+				rm -f "${p25gateway_pidfile}"
+			fi
+		else
+			einfo "P25Gateway is not running"
+		fi
+	else
+		einfo "P25Gateway is disabled"
+	fi
+	
+	# Check P25Parrot status
+	if yesno "$ENABLE_P25PARROT"; then
+		total=$((total + 1))
+		if [ -f "${p25parrot_pidfile}" ]; then
+			if kill -0 "$(cat ${p25parrot_pidfile})" 2>/dev/null; then
+				einfo "P25Parrot is running (PID $(cat ${p25parrot_pidfile}))"
+				running=$((running + 1))
+			else
+				einfo "P25Parrot is not running (stale PID file)"
+				rm -f "${p25parrot_pidfile}"
+			fi
+		else
+			einfo "P25Parrot is not running"
+		fi
+	else
+		einfo "P25Parrot is disabled"
+	fi
+	
+	if [ $running -eq $total ] && [ $total -gt 0 ]; then
+		return 0  # All enabled services running
+	elif [ $running -eq 0 ]; then
+		return 3  # All services stopped
+	else
+		return 1  # Partially running
+	fi
+}
+
+restart() {
+	stop
+	sleep 2
+	start
+}
+
+reload() {
+	ebegin "Reloading P25 Clients configuration"
+	
+	# Send HUP signal to running processes
+	if [ -f "${p25gateway_pidfile}" ] && kill -0 "$(cat ${p25gateway_pidfile})" 2>/dev/null; then
+		kill -HUP "$(cat ${p25gateway_pidfile})"
+	fi
+	
+	if [ -f "${p25parrot_pidfile}" ] && kill -0 "$(cat ${p25parrot_pidfile})" 2>/dev/null; then
+		kill -HUP "$(cat ${p25parrot_pidfile})"
+	fi
+	
+	eend $?
+}

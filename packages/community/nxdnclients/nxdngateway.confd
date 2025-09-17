@@ -1,0 +1,11 @@
+# Configuration for NXDN Gateway service
+
+# Configuration file location
+# NXDNGATEWAY_CONFIG="/etc/nxdnclients/NXDNGateway.ini"
+
+# User and group to run as
+# NXDNGATEWAY_USER="nxdn"
+# NXDNGATEWAY_GROUP="nxdn"
+
+# Log file location
+# NXDNGATEWAY_LOGFILE="/var/log/nxdnclients/nxdngateway.log"

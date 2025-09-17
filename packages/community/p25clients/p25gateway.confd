@@ -1,0 +1,18 @@
+# Configuration for P25 Gateway service
+
+# Configuration file locations
+# P25GATEWAY_CONFIG="/etc/p25clients/P25Gateway.ini"
+# P25PARROT_CONFIG="/etc/p25clients/P25Parrot.ini"
+
+# User and group to run as
+# P25CLIENTS_USER="p25"
+# P25CLIENTS_GROUP="p25"
+
+# Log file locations
+# P25GATEWAY_LOGFILE="/var/log/p25clients/p25gateway.log"
+# P25PARROT_LOGFILE="/var/log/p25clients/p25parrot.log"
+
+# Enable/disable individual services
+# Set to "yes" to enable, "no" to disable
+# ENABLE_P25GATEWAY="yes"
+# ENABLE_P25PARROT="yes"

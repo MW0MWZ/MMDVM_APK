@@ -1,0 +1,17 @@
+# Configuration for DStarGateway service
+
+# Configuration file location
+# DSTARGATEWAY_CONFIG="/etc/dstarclients/dstargateway.cfg"
+
+# User and group to run as
+# Note: User should be in 'dialout' group for modem access
+#       and 'audio' group for voice announcements
+# Default uses mmdvm user for consistency with other amateur radio packages
+# DSTARGATEWAY_USER="mmdvm"
+# DSTARGATEWAY_GROUP="mmdvm"
+
+# Log file location
+# DSTARGATEWAY_LOGFILE="/var/log/dstarclients/dstargateway.log"
+
+# Additional command line options
+# DSTARGATEWAY_OPTS=""

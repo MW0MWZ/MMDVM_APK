@@ -1,0 +1,222 @@
+# Contributor: MW0MWZ <andy@mw0mwz.co.uk>
+# Maintainer: MW0MWZ <andy@mw0mwz.co.uk>
+pkgname=dstarrepeater
+# Version will be set dynamically by build script (YYYY.MM.DD format)
+pkgver=2025.01.01
+pkgrel=1
+# Git commit will be captured during build
+_gitcommit="fd7f1a1"
+pkgdesc="D-Star Repeater Controller for Amateur Radio - Dedicated D-Star only repeater system"
+url="https://github.com/g4klx/DStarRepeater"
+arch="all"
+license="GPL-2.0-or-later"
+makedepends="
+	wxwidgets-dev
+	linux-headers
+	build-base
+	git
+	libusb-dev
+	alsa-lib-dev
+	"
+depends="
+	libgcc
+	libstdc++
+	wxwidgets
+	libusb
+	alsa-lib
+	"
+subpackages="$pkgname-doc $pkgname-openrc"
+source=""
+options="!check"  # No test suite
+giturl="https://github.com/g4klx/DStarRepeater.git"
+
+# Architecture-specific dependencies
+case "$CARCH" in
+	armhf|aarch64)
+		# ARM platforms need additional hardware interface libraries
+		makedepends="$makedepends linux-rpi-dev wiringpi wiringpi-dev"
+		depends="$depends wiringpi"
+		;;
+	x86_64)
+		# x86_64 platform needs different kernel files
+		makedepends="$makedepends linux-lts-dev"
+		;;
+esac
+
+# We'll clone the git repo in prepare() instead of using source
+prepare() {
+	# Clean any existing source
+	rm -rf "$srcdir/DStarRepeater"
+	
+	# Clone the repository
+	msg "Cloning DStarRepeater from $giturl"
+	git clone "$giturl" "$srcdir/DStarRepeater"
+	cd "$srcdir/DStarRepeater"
+	
+	# Get the version info that will be embedded in the binary
+	local git_version=$(git describe --tags --always)
+	msg "DStarRepeater git version: $git_version"
+	
+	# Fix the Makefile issue - CFLAGS is used but we need CXXFLAGS for C++ compilation
+	msg "Patching Makefiles to properly export CXXFLAGS and add release flags"
+	
+	# For the main x86_64 Makefile
+	if [ -f Makefile ]; then
+		# Add CXXFLAGS export right after the CFLAGS line
+		sed -i '/^export CFLAGS.*=/a export CXXFLAGS := $(CFLAGS)' Makefile
+	fi
+	
+	# For the ARM MakefilePi
+	if [ -f MakefilePi ]; then
+		# Add release flags to suppress debug output on ARM
+		sed -i 's/export CFLAGS.*:=.*/& -DNDEBUG -DwxDEBUG_LEVEL=0/' MakefilePi
+		# Add CXXFLAGS export right after the CFLAGS line
+		sed -i '/^export CFLAGS.*=/a export CXXFLAGS := $(CFLAGS)' MakefilePi
+	fi
+	
+	# Apply any patches if needed
+	cd "$srcdir"
+	default_prepare || true
+}
+
+build() {
+	cd "$srcdir/DStarRepeater"
+	
+	# Build based on architecture
+	case "$CARCH" in
+		armhf|aarch64)
+			msg "Building DStarRepeater with GPIO support for ARM"
+			
+			if [ -f MakefilePi ]; then
+				# MakefilePi exists, use it for ARM with GPIO support
+				make -f MakefilePi clean || true
+				make -f MakefilePi -j $(nproc) all
+			else
+				# Use standard Makefile
+				make clean || true
+				make BUILD=release -j $(nproc) all
+			fi
+			;;
+		x86_64)
+			msg "Building DStarRepeater for x86_64"
+			
+			# Use the standard Makefile with release build
+			make clean || true
+			make BUILD=release -j $(nproc) all
+			;;
+	esac
+	
+	# Build other standalone components if they exist
+	for component in AnalogueRepeater DVAPNode DVRPTRRepeater GMSKRepeater SoundCardRepeater SplitRepeater; do
+		if [ -d "$component" ]; then
+			msg "Building $component"
+			cd "$component"
+			
+			make clean || true
+			
+			case "$CARCH" in
+				armhf|aarch64)
+					if [ -f MakefilePi ]; then
+						make -f MakefilePi -j $(nproc) all
+					else
+						make BUILD=release -j $(nproc) all
+					fi
+					;;
+				*)
+					make BUILD=release -j $(nproc) all
+					;;
+			esac
+			
+			cd ..
+		fi
+	done
+}
+
+package() {
+	cd "$srcdir/DStarRepeater"
+	
+	# Install main DStarRepeater daemon
+	if [ -f DStarRepeater/dstarrepeaterd ]; then
+		install -Dm755 DStarRepeater/dstarrepeaterd "$pkgdir"/usr/bin/dstarrepeaterd
+	fi
+	
+	# Install configuration tool if it exists
+	if [ -f DStarRepeaterConfig/dstarrepeaterconfig ]; then
+		install -Dm755 DStarRepeaterConfig/dstarrepeaterconfig "$pkgdir"/usr/bin/dstarrepeaterconfig
+	fi
+	
+	# Install various repeater types
+	for repeater in analoguerepeater dvapnode dvrptrrepeater gmskrepeater soundcardrepeater splitrepeater; do
+		local srcname=$(echo $repeater | sed 's/repeater/Repeater/g;s/node/Node/g;s/dvap/DVAP/g;s/dvrptr/DVRPTR/g;s/gmsk/GMSK/g;s/soundcard/SoundCard/g;s/split/Split/g;s/analogue/Analogue/g')
+		
+		if [ -f "${srcname}/${repeater}d" ]; then
+			install -Dm755 "${srcname}/${repeater}d" "$pkgdir"/usr/bin/${repeater}d
+		fi
+	done
+	
+	# Create directories
+	install -dm755 "$pkgdir"/etc/dstarrepeater
+	install -dm755 "$pkgdir"/usr/share/dstarrepeater
+	install -dm755 "$pkgdir"/var/log/dstarrepeater
+	
+	# Install data files
+	if [ -d Data ]; then
+		cd Data
+		for file in *.txt *.dat *.ambe *.indx *.wav; do
+			[ -f "$file" ] && install -Dm644 "$file" \
+				"$pkgdir"/usr/share/dstarrepeater/"$file"
+		done
+		cd ..
+	fi
+	
+	# Install configuration examples from each component
+	for component in DStarRepeater AnalogueRepeater DVAPNode DVRPTRRepeater GMSKRepeater SoundCardRepeater SplitRepeater; do
+		if [ -d "$component" ]; then
+			cd "$component"
+			for conf in *.conf *.cfg *.ini; do
+				[ -f "$conf" ] && install -Dm644 "$conf" \
+					"$pkgdir"/etc/dstarrepeater/"${conf}.example"
+			done
+			cd ..
+		fi
+	done
+	
+	# Install systemd service files if they exist (for reference)
+	if [ -f linux/systemd/dstarrepeater.service ]; then
+		install -Dm644 linux/systemd/dstarrepeater.service \
+			"$pkgdir"/usr/share/doc/$pkgname/dstarrepeater.service.example
+	fi
+	
+	# Install documentation
+	install -dm755 "$pkgdir"/usr/share/doc/$pkgname
+	for doc in README* CHANGES* AUTHORS *.md; do
+		[ -f "$doc" ] && install -Dm644 "$doc" \
+			"$pkgdir"/usr/share/doc/$pkgname/"$doc"
+	done
+	
+	# Install license file
+	mkdir -p "$pkgdir"/usr/share/licenses/$pkgname
+	if [ -f LICENSE ]; then
+		install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	elif [ -f COPYING ]; then
+		install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
+	elif [ -f LICENSE.txt ]; then
+		install -Dm644 LICENSE.txt "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	else
+		# If no license file found, create a reference
+		echo "GPL-2.0-or-later - See upstream repository" > "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	fi
+	
+	# Install OpenRC init scripts
+	install -Dm755 "$startdir"/dstarrepeater.initd "$pkgdir"/etc/init.d/dstarrepeater
+	install -Dm644 "$startdir"/dstarrepeater.confd "$pkgdir"/etc/conf.d/dstarrepeater
+}
+
+doc() {
+	default_doc
+}
+
+openrc() {
+	default_openrc
+	install_if=
+}

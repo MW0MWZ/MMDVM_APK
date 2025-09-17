@@ -1,0 +1,20 @@
+# Alpine Linux package build artifacts
+*.apk
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+src/
+pkg/
+tmp/
+
+# Build logs
+*.log
+
+# Backup files
+*~
+*.bak
+*.orig
+
+# Downloaded source archives
+DStarRepeater-*.tar.gz
+DStarRepeater-*.zip

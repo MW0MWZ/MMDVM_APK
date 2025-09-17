@@ -1,0 +1,11 @@
+# Configuration for DMR Gateway service
+
+# Configuration file location
+# DMRGATEWAY_CONFIG="/etc/dmrclients/DMRGateway.ini"
+
+# User and group to run as
+# DMRGATEWAY_USER="dmr"
+# DMRGATEWAY_GROUP="dmr"
+
+# Log file location
+# DMRGATEWAY_LOGFILE="/var/log/dmrclients/dmrgateway.log"

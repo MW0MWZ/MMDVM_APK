@@ -1,0 +1,57 @@
+#!/sbin/openrc-run
+# OpenRC init script for YSF2P25 Cross-Mode Converter
+
+name="YSF2P25"
+description="YSF to P25 cross-mode converter for Amateur Radio"
+
+# Configuration
+: ${YSF2P25_CONFIG:="/etc/ysfclients/YSF2P25.ini"}
+: ${YSF2P25_USER:="ysf2p25"}
+: ${YSF2P25_GROUP:="ysf2p25"}
+: ${YSF2P25_LOGFILE:="/var/log/ysfclients/ysf2p25.log"}
+
+command="/usr/bin/YSF2P25"
+command_args="${YSF2P25_CONFIG}"
+command_user="${YSF2P25_USER}:${YSF2P25_GROUP}"
+command_background=true
+pidfile="/run/${RC_SVCNAME}.pid"
+start_stop_daemon_args="--stdout ${YSF2P25_LOGFILE} --stderr ${YSF2P25_LOGFILE}"
+
+depend() {
+	need net
+	after firewall
+	use logger dns
+}
+
+start_pre() {
+	# Check if configuration exists
+	if [ ! -f "${YSF2P25_CONFIG}" ]; then
+		eerror "YSF2P25 configuration file ${YSF2P25_CONFIG} does not exist"
+		eerror "Please create it from: cp /etc/ysfclients/YSF2P25.ini.example ${YSF2P25_CONFIG}"
+		return 1
+	fi
+	
+	# Create log directory if it doesn't exist
+	checkpath -d -o "${YSF2P25_USER}:${YSF2P25_GROUP}" -m 0755 /var/log/ysfclients
+	
+	# Create log file if it doesn't exist
+	checkpath -f -o "${YSF2P25_USER}:${YSF2P25_GROUP}" -m 0644 "${YSF2P25_LOGFILE}"
+	
+	# Create user if it doesn't exist
+	if ! id -u "${YSF2P25_USER}" >/dev/null 2>&1; then
+		einfo "Creating user ${YSF2P25_USER}"
+		adduser -D -H -s /sbin/nologin -G "${YSF2P25_GROUP}" "${YSF2P25_USER}" 2>/dev/null || \
+		adduser -D -H -s /sbin/nologin "${YSF2P25_USER}" 2>/dev/null
+	fi
+}
+
+stop_post() {
+	# Give the process a moment to clean up
+	sleep 1
+}
+
+reload() {
+	ebegin "Reloading ${name} configuration"
+	start-stop-daemon --signal HUP --pidfile "${pidfile}"
+	eend $?
+}

@@ -1,0 +1,225 @@
+#!/sbin/openrc-run
+# OpenRC init script for YSF Gateway (YSFGateway and YSFParrot)
+
+name="YSF Gateway"
+description="YSF Gateway and Parrot for Amateur Radio digital communications"
+
+# Configuration
+: ${YSFGATEWAY_CONFIG:="/etc/ysfclients/YSFGateway.ini"}
+: ${YSFPARROT_CONFIG:="/etc/ysfclients/YSFParrot.ini"}
+: ${YSFGATEWAY_USER:="ysf"}
+: ${YSFGATEWAY_GROUP:="ysf"}
+: ${YSFGATEWAY_LOGFILE:="/var/log/ysfclients/ysfgateway.log"}
+: ${YSFPARROT_LOGFILE:="/var/log/ysfclients/ysfparrot.log"}
+
+# Enable/disable individual services
+: ${ENABLE_YSFGATEWAY:="yes"}
+: ${ENABLE_YSFPARROT:="yes"}
+
+# Process management
+ysfgateway_pidfile="/run/ysfgateway.pid"
+ysfparrot_pidfile="/run/ysfparrot.pid"
+
+depend() {
+	need net
+	after firewall
+	use logger dns
+}
+
+start_pre() {
+	local errors=0
+	
+	# Check YSFGateway configuration if enabled
+	if yesno "$ENABLE_YSFGATEWAY"; then
+		if [ ! -f "${YSFGATEWAY_CONFIG}" ]; then
+			eerror "YSFGateway configuration file ${YSFGATEWAY_CONFIG} does not exist"
+			eerror "Please create it from: cp /etc/ysfclients/YSFGateway.ini.example ${YSFGATEWAY_CONFIG}"
+			errors=$((errors + 1))
+		fi
+	fi
+	
+	# Check YSFParrot configuration if enabled
+	if yesno "$ENABLE_YSFPARROT"; then
+		if [ ! -f "${YSFPARROT_CONFIG}" ]; then
+			eerror "YSFParrot configuration file ${YSFPARROT_CONFIG} does not exist"
+			eerror "Please create it from: cp /etc/ysfclients/YSFParrot.ini.example ${YSFPARROT_CONFIG}"
+			errors=$((errors + 1))
+		fi
+	fi
+	
+	# Exit if any configuration errors
+	if [ $errors -gt 0 ]; then
+		return 1
+	fi
+	
+	# Create log directory if it doesn't exist
+	checkpath -d -o "${YSFGATEWAY_USER}:${YSFGATEWAY_GROUP}" -m 0755 /var/log/ysfclients
+	
+	# Create log files if they don't exist
+	checkpath -f -o "${YSFGATEWAY_USER}:${YSFGATEWAY_GROUP}" -m 0644 "${YSFGATEWAY_LOGFILE}"
+	checkpath -f -o "${YSFGATEWAY_USER}:${YSFGATEWAY_GROUP}" -m 0644 "${YSFPARROT_LOGFILE}"
+	
+	# Create user if it doesn't exist
+	if ! id -u "${YSFGATEWAY_USER}" >/dev/null 2>&1; then
+		einfo "Creating user ${YSFGATEWAY_USER}"
+		adduser -D -H -s /sbin/nologin -G "${YSFGATEWAY_GROUP}" "${YSFGATEWAY_USER}" 2>/dev/null || \
+		adduser -D -H -s /sbin/nologin "${YSFGATEWAY_USER}" 2>/dev/null
+	fi
+}
+
+start() {
+	local started=0
+	
+	ebegin "Starting YSF Gateway"
+	
+	# Start YSFGateway if enabled
+	if yesno "$ENABLE_YSFGATEWAY"; then
+		einfo "Starting YSFGateway"
+		start-stop-daemon --start --quiet \
+			--pidfile "${ysfgateway_pidfile}" \
+			--make-pidfile \
+			--background \
+			--user "${YSFGATEWAY_USER}" \
+			--stdout "${YSFGATEWAY_LOGFILE}" \
+			--stderr "${YSFGATEWAY_LOGFILE}" \
+			--exec /usr/bin/YSFGateway -- "${YSFGATEWAY_CONFIG}"
+		
+		if [ $? -eq 0 ]; then
+			started=$((started + 1))
+		else
+			eerror "Failed to start YSFGateway"
+		fi
+	fi
+	
+	# Start YSFParrot if enabled
+	if yesno "$ENABLE_YSFPARROT"; then
+		einfo "Starting YSFParrot"
+		start-stop-daemon --start --quiet \
+			--pidfile "${ysfparrot_pidfile}" \
+			--make-pidfile \
+			--background \
+			--user "${YSFGATEWAY_USER}" \
+			--stdout "${YSFPARROT_LOGFILE}" \
+			--stderr "${YSFPARROT_LOGFILE}" \
+			--exec /usr/bin/YSFParrot -- "${YSFPARROT_CONFIG}"
+		
+		if [ $? -eq 0 ]; then
+			started=$((started + 1))
+		else
+			eerror "Failed to start YSFParrot"
+		fi
+	fi
+	
+	if [ $started -gt 0 ]; then
+		einfo "Started $started YSF service(s)"
+		eend 0
+	else
+		eerror "Failed to start any YSF services"
+		eend 1
+	fi
+}
+
+stop() {
+	local stopped=0
+	
+	ebegin "Stopping YSF Gateway"
+	
+	# Stop YSFGateway
+	if [ -f "${ysfgateway_pidfile}" ]; then
+		einfo "Stopping YSFGateway"
+		start-stop-daemon --stop --quiet \
+			--pidfile "${ysfgateway_pidfile}" \
+			--retry TERM/30/KILL/5
+		
+		if [ $? -eq 0 ]; then
+			rm -f "${ysfgateway_pidfile}"
+			stopped=$((stopped + 1))
+		fi
+	fi
+	
+	# Stop YSFParrot
+	if [ -f "${ysfparrot_pidfile}" ]; then
+		einfo "Stopping YSFParrot"
+		start-stop-daemon --stop --quiet \
+			--pidfile "${ysfparrot_pidfile}" \
+			--retry TERM/30/KILL/5
+		
+		if [ $? -eq 0 ]; then
+			rm -f "${ysfparrot_pidfile}"
+			stopped=$((stopped + 1))
+		fi
+	fi
+	
+	einfo "Stopped $stopped YSF service(s)"
+	eend 0
+}
+
+status() {
+	local running=0
+	local total=0
+	
+	# Check YSFGateway status
+	if yesno "$ENABLE_YSFGATEWAY"; then
+		total=$((total + 1))
+		if [ -f "${ysfgateway_pidfile}" ]; then
+			if kill -0 "$(cat ${ysfgateway_pidfile})" 2>/dev/null; then
+				einfo "YSFGateway is running (PID $(cat ${ysfgateway_pidfile}))"
+				running=$((running + 1))
+			else
+				einfo "YSFGateway is not running (stale PID file)"
+				rm -f "${ysfgateway_pidfile}"
+			fi
+		else
+			einfo "YSFGateway is not running"
+		fi
+	else
+		einfo "YSFGateway is disabled"
+	fi
+	
+	# Check YSFParrot status
+	if yesno "$ENABLE_YSFPARROT"; then
+		total=$((total + 1))
+		if [ -f "${ysfparrot_pidfile}" ]; then
+			if kill -0 "$(cat ${ysfparrot_pidfile})" 2>/dev/null; then
+				einfo "YSFParrot is running (PID $(cat ${ysfparrot_pidfile}))"
+				running=$((running + 1))
+			else
+				einfo "YSFParrot is not running (stale PID file)"
+				rm -f "${ysfparrot_pidfile}"
+			fi
+		else
+			einfo "YSFParrot is not running"
+		fi
+	else
+		einfo "YSFParrot is disabled"
+	fi
+	
+	if [ $running -eq $total ] && [ $total -gt 0 ]; then
+		return 0  # All enabled services running
+	elif [ $running -eq 0 ]; then
+		return 3  # All services stopped
+	else
+		return 1  # Partially running
+	fi
+}
+
+restart() {
+	stop
+	sleep 2
+	start
+}
+
+reload() {
+	ebegin "Reloading YSF Gateway configuration"
+	
+	# Send HUP signal to running processes
+	if [ -f "${ysfgateway_pidfile}" ] && kill -0 "$(cat ${ysfgateway_pidfile})" 2>/dev/null; then
+		kill -HUP "$(cat ${ysfgateway_pidfile})"
+	fi
+	
+	if [ -f "${ysfparrot_pidfile}" ] && kill -0 "$(cat ${ysfparrot_pidfile})" 2>/dev/null; then
+		kill -HUP "$(cat ${ysfparrot_pidfile})"
+	fi
+	
+	eend $?
+}

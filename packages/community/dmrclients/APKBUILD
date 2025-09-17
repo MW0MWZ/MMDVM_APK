@@ -1,0 +1,268 @@
+# Contributor: MW0MWZ <andy@mw0mwz.co.uk>
+# Maintainer: MW0MWZ <andy@mw0mwz.co.uk>
+pkgname=dmrclients
+# Version will be set dynamically by build script (YYYY.MM.DD format)
+pkgver=2025.01.01
+pkgrel=0
+# Git commit will be captured during build
+_gitcommit="1dd5383"
+pkgdesc="DMR Clients for Amateur Radio - DMR Gateway and Cross-Mode converters for digital communications"
+url="https://github.com/g4klx/DMRGateway"
+arch="x86_64 armhf aarch64"
+license="GPL-2.0-or-later"
+makedepends="
+	build-base
+	git
+	"
+depends="
+	libgcc
+	libstdc++
+	"
+subpackages="$pkgname-doc $pkgname-openrc"
+source=""
+options="!check"  # No test suite
+dmrgateway_giturl="https://github.com/g4klx/DMRGateway.git"
+mmdvm_cm_giturl="https://github.com/nostar/MMDVM_CM.git"
+
+# We'll clone the git repos in prepare() instead of using source
+prepare() {
+	# Clean any existing source
+	rm -rf "$srcdir/DMRGateway"
+	rm -rf "$srcdir/MMDVM_CM"
+	
+	# Clone the DMRGateway repository
+	msg "Cloning DMRGateway from $dmrgateway_giturl"
+	git clone "$dmrgateway_giturl" "$srcdir/DMRGateway"
+	cd "$srcdir/DMRGateway"
+	
+	# Get the version info that will be embedded in the binary
+	local git_version=$(git describe --tags --always)
+	msg "DMRGateway git version: $git_version"
+	
+	# Clone the MMDVM_CM repository for cross-mode converters
+	cd "$srcdir"
+	msg "Cloning MMDVM_CM from $mmdvm_cm_giturl"
+	git clone "$mmdvm_cm_giturl" "$srcdir/MMDVM_CM"
+	cd "$srcdir/MMDVM_CM"
+	
+	# Get the version info for MMDVM_CM
+	local mmdvm_cm_version=$(git describe --tags --always)
+	msg "MMDVM_CM git version: $mmdvm_cm_version"
+	
+	# Apply any patches if needed
+	cd "$srcdir"
+	default_prepare || true
+}
+
+build() {
+	# Build DMRGateway
+	cd "$srcdir/DMRGateway"
+	
+	msg "Building DMRGateway"
+	make clean || true
+	make \
+		CFLAGS="$CFLAGS" \
+		CXXFLAGS="$CXXFLAGS" \
+		LDFLAGS="$LDFLAGS" \
+		-j $(nproc) \
+		all
+	
+	# Build MMDVM_CM cross-mode converters
+	cd "$srcdir/MMDVM_CM"
+	
+	# Build DMR2YSF
+	if [ -d "DMR2YSF" ]; then
+		msg "Building DMR2YSF"
+		cd DMR2YSF
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS" \
+			CXXFLAGS="$CXXFLAGS" \
+			LDFLAGS="$LDFLAGS" \
+			-j $(nproc) \
+			all
+		cd ..
+	fi
+	
+	# Build DMR2NXDN
+	if [ -d "DMR2NXDN" ]; then
+		msg "Building DMR2NXDN"
+		cd DMR2NXDN
+		make clean || true
+		make \
+			CFLAGS="$CFLAGS" \
+			CXXFLAGS="$CXXFLAGS" \
+			LDFLAGS="$LDFLAGS" \
+			-j $(nproc) \
+			all
+		cd ..
+	fi
+}
+
+package() {
+	# Install DMRGateway
+	cd "$srcdir/DMRGateway"
+	
+	# Install the main binary
+	if [ -f DMRGateway ]; then
+		install -Dm755 DMRGateway "$pkgdir"/usr/bin/DMRGateway
+	fi
+	
+	# Install configuration sample to /usr/share
+	if [ -f DMRGateway.ini ]; then
+		install -Dm644 DMRGateway.ini "$pkgdir"/usr/share/dmrclients/DMRGateway.ini.sample
+	fi
+	
+	# Also install configuration example to /etc
+	install -dm755 "$pkgdir"/etc/dmrclients
+	if [ -f DMRGateway.ini ]; then
+		install -Dm644 DMRGateway.ini "$pkgdir"/etc/dmrclients/DMRGateway.ini.example
+	fi
+	
+	# Install XLXHosts.txt and other data files
+	for datafile in XLXHosts.txt DMR_Audio Audio; do
+		if [ -f "$datafile" ]; then
+			install -Dm644 "$datafile" "$pkgdir"/usr/share/dmrclients/"$datafile"
+		elif [ -d "$datafile" ]; then
+			install -dm755 "$pkgdir"/usr/share/dmrclients/"$datafile"
+			cp -r "$datafile"/* "$pkgdir"/usr/share/dmrclients/"$datafile"/ 2>/dev/null || true
+		fi
+	done
+	
+	# Install MMDVM_CM cross-mode converters
+	cd "$srcdir/MMDVM_CM"
+	
+	# Install DMR2YSF binary and files
+	if [ -d "DMR2YSF" ]; then
+		cd DMR2YSF
+		
+		# Install the main binary
+		if [ -f DMR2YSF ]; then
+			install -Dm755 DMR2YSF "$pkgdir"/usr/bin/DMR2YSF
+		fi
+		
+		# Install configuration sample to /usr/share
+		if [ -f DMR2YSF.ini ]; then
+			install -Dm644 DMR2YSF.ini "$pkgdir"/usr/share/dmrclients/DMR2YSF.ini.sample
+		fi
+		
+		# Also install configuration example to /etc
+		if [ -f DMR2YSF.ini ]; then
+			install -Dm644 DMR2YSF.ini "$pkgdir"/etc/dmrclients/DMR2YSF.ini.example
+		fi
+		
+		# Install DMR ID lookup file if present
+		for dmrid_file in DMRIds.dat DMRIds.csv; do
+			if [ -f "$dmrid_file" ]; then
+				install -Dm644 "$dmrid_file" "$pkgdir"/usr/share/dmrclients/"$dmrid_file".example
+			fi
+		done
+		
+		cd ..
+	fi
+	
+	# Install DMR2NXDN binary and files
+	if [ -d "DMR2NXDN" ]; then
+		cd DMR2NXDN
+		
+		# Install the main binary
+		if [ -f DMR2NXDN ]; then
+			install -Dm755 DMR2NXDN "$pkgdir"/usr/bin/DMR2NXDN
+		fi
+		
+		# Install configuration sample to /usr/share
+		if [ -f DMR2NXDN.ini ]; then
+			install -Dm644 DMR2NXDN.ini "$pkgdir"/usr/share/dmrclients/DMR2NXDN.ini.sample
+		fi
+		
+		# Also install configuration example to /etc
+		if [ -f DMR2NXDN.ini ]; then
+			install -Dm644 DMR2NXDN.ini "$pkgdir"/etc/dmrclients/DMR2NXDN.ini.example
+		fi
+		
+		# Install ID lookup files if present
+		for id_file in DMRIds.dat DMRIds.csv NXDNIds.dat NXDNIds.csv NXDN.csv; do
+			if [ -f "$id_file" ]; then
+				install -Dm644 "$id_file" "$pkgdir"/usr/share/dmrclients/"$id_file".example
+			fi
+		done
+		
+		cd ..
+	fi
+	
+	# Install systemd service files if they exist (for reference)
+	cd "$srcdir/DMRGateway"
+	for service in dmrgateway; do
+		if [ -f linux/systemd/${service}.service ]; then
+			install -Dm644 linux/systemd/${service}.service \
+				"$pkgdir"/usr/share/doc/$pkgname/${service}.service.example
+		fi
+	done
+	
+	# Install README files from DMRGateway
+	if [ -f README.md ]; then
+		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README.md
+	elif [ -f README ]; then
+		install -Dm644 README "$pkgdir"/usr/share/doc/$pkgname/README
+	fi
+	
+	# Install README files from MMDVM_CM
+	cd "$srcdir/MMDVM_CM"
+	if [ -f README.md ]; then
+		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README-MMDVM_CM.md
+	fi
+	
+	# Install individual README files from MMDVM_CM subdirectories
+	for subdir in DMR2YSF DMR2NXDN; do
+		if [ -f ${subdir}/README.md ]; then
+			install -Dm644 ${subdir}/README.md "$pkgdir"/usr/share/doc/$pkgname/README-${subdir}.md
+		elif [ -f ${subdir}/README ]; then
+			install -Dm644 ${subdir}/README "$pkgdir"/usr/share/doc/$pkgname/README-${subdir}
+		fi
+	done
+	
+	cd "$srcdir/DMRGateway"
+	
+	# Look for license file
+	mkdir -p "$pkgdir"/usr/share/licenses/$pkgname
+	if [ -f LICENSE ]; then
+		install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	elif [ -f COPYING ]; then
+		install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
+	elif [ -f LICENSE.txt ]; then
+		install -Dm644 LICENSE.txt "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	else
+		# If no license file found, create a reference
+		echo "GPL-2.0-or-later - See upstream repository" > "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	fi
+	
+	# Also check for MMDVM_CM license
+	cd "$srcdir/MMDVM_CM"
+	if [ -f LICENSE ]; then
+		install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE-MMDVM_CM
+	elif [ -f COPYING ]; then
+		install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING-MMDVM_CM
+	fi
+	
+	# Create necessary directories
+	install -dm755 "$pkgdir"/var/log/dmrclients
+	install -dm755 "$pkgdir"/etc/dmrclients
+	install -dm755 "$pkgdir"/usr/share/dmrclients
+	
+	# Install OpenRC init scripts
+	install -Dm755 "$srcdir"/../dmrgateway.initd "$pkgdir"/etc/init.d/dmrgateway
+	install -Dm644 "$srcdir"/../dmrgateway.confd "$pkgdir"/etc/conf.d/dmrgateway
+	install -Dm755 "$srcdir"/../dmr2ysf.initd "$pkgdir"/etc/init.d/dmr2ysf
+	install -Dm644 "$srcdir"/../dmr2ysf.confd "$pkgdir"/etc/conf.d/dmr2ysf
+	install -Dm755 "$srcdir"/../dmr2nxdn.initd "$pkgdir"/etc/init.d/dmr2nxdn
+	install -Dm644 "$srcdir"/../dmr2nxdn.confd "$pkgdir"/etc/conf.d/dmr2nxdn
+}
+
+doc() {
+	default_doc
+}
+
+openrc() {
+    default_openrc
+    install_if=
+}

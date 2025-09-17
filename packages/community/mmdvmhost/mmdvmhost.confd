@@ -1,0 +1,15 @@
+# Configuration for MMDVMHost service
+
+# Configuration file location
+# MMDVMHOST_CONFIG="/etc/mmdvmhost/MMDVM.ini"
+
+# User and group to run as
+# Note: User must have access to serial devices
+# MMDVMHOST_USER="mmdvm"
+# MMDVMHOST_GROUP="mmdvm"
+
+# Log file location
+# MMDVMHOST_LOGFILE="/var/log/mmdvmhost/mmdvmhost.log"
+
+# Additional command line options
+# MMDVMHOST_OPTS=""

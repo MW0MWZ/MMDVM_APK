@@ -1,0 +1,46 @@
+#!/bin/sh
+# Pre-installation script for dstarrepeater
+
+# Create the dstar group if it doesn't exist
+if ! getent group dstar >/dev/null 2>&1; then
+	echo "Creating group 'dstar'..."
+	addgroup -S dstar
+fi
+
+# Create the dstar user if it doesn't exist
+if ! getent passwd dstar >/dev/null 2>&1; then
+	echo "Creating user 'dstar'..."
+	adduser -S -D -H \
+		-h /var/lib/dstarrepeater \
+		-s /sbin/nologin \
+		-G dstar \
+		-g "D-Star Repeater" \
+		dstar
+fi
+
+# Add the dstar user to necessary groups for hardware access
+# dialout group for serial port access
+if getent group dialout >/dev/null 2>&1; then
+	adduser dstar dialout 2>/dev/null || true
+fi
+
+# usb group for USB device access
+if getent group usb >/dev/null 2>&1; then
+	adduser dstar usb 2>/dev/null || true
+fi
+
+# audio group for sound card access
+if getent group audio >/dev/null 2>&1; then
+	adduser dstar audio 2>/dev/null || true
+fi
+
+# gpio group for GPIO access on ARM platforms
+case "$(uname -m)" in
+	arm*|aarch64)
+		if getent group gpio >/dev/null 2>&1; then
+			adduser dstar gpio 2>/dev/null || true
+		fi
+		;;
+esac
+
+exit 0

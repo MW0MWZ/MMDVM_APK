@@ -1,0 +1,59 @@
+#!/sbin/openrc-run
+# OpenRC init script for MMDVMHost
+
+name="MMDVMHost"
+description="MMDVM Host Software for Digital Amateur Radio"
+
+# Configuration
+: ${MMDVMHOST_CONFIG:="/etc/mmdvmhost/MMDVM.ini"}
+: ${MMDVMHOST_USER:="mmdvm"}
+: ${MMDVMHOST_GROUP:="mmdvm"}
+: ${MMDVMHOST_LOGFILE:="/var/log/mmdvmhost/mmdvmhost.log"}
+
+command="/usr/bin/MMDVMHost"
+command_args="${MMDVMHOST_CONFIG}"
+command_user="${MMDVMHOST_USER}:${MMDVMHOST_GROUP}"
+command_background=true
+pidfile="/run/${RC_SVCNAME}.pid"
+start_stop_daemon_args="--stdout ${MMDVMHOST_LOGFILE} --stderr ${MMDVMHOST_LOGFILE}"
+
+depend() {
+	need net
+	after firewall
+	use logger
+}
+
+start_pre() {
+	# Check if configuration exists
+	if [ ! -f "${MMDVMHOST_CONFIG}" ]; then
+		eerror "Configuration file ${MMDVMHOST_CONFIG} does not exist"
+		eerror "Please create it from the example: cp /etc/mmdvmhost/MMDVM.ini.example ${MMDVMHOST_CONFIG}"
+		return 1
+	fi
+	
+	# Create log directory if it doesn't exist
+	checkpath -d -o "${MMDVMHOST_USER}:${MMDVMHOST_GROUP}" -m 0755 /var/log/mmdvmhost
+	
+	# Create log file if it doesn't exist
+	checkpath -f -o "${MMDVMHOST_USER}:${MMDVMHOST_GROUP}" -m 0644 "${MMDVMHOST_LOGFILE}"
+	
+	# Check for required devices on ARM platforms
+	case "$(uname -m)" in
+		arm*|aarch64)
+			if [ ! -e "/dev/ttyAMA0" ] && [ ! -e "/dev/ttyUSB0" ] && [ ! -e "/dev/ttyACM0" ]; then
+				ewarn "No serial device found - MMDVMHost may fail to start"
+			fi
+			;;
+	esac
+}
+
+stop_post() {
+	# Give the process a moment to clean up
+	sleep 1
+}
+
+reload() {
+	ebegin "Reloading ${name} configuration"
+	start-stop-daemon --signal HUP --pidfile "${pidfile}"
+	eend $?
+}

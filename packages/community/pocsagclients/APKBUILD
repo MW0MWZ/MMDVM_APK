@@ -1,0 +1,119 @@
+# Contributor: MW0MWZ <andy@mw0mwz.co.uk>
+# Maintainer: MW0MWZ <andy@mw0mwz.co.uk>
+pkgname=pocsagclients
+# Version will be set dynamically by build script (YYYY.MM.DD format)
+pkgver=2025.01.01
+pkgrel=0
+# Git commit will be captured during build
+_gitcommit="475c802"
+pkgdesc="POCSAG Clients for Amateur Radio - DAPNET Gateway for POCSAG paging network"
+url="https://github.com/g4klx/DAPNETGateway"
+arch="x86_64 armhf aarch64"
+license="GPL-2.0-or-later"
+makedepends="
+	build-base
+	git
+	"
+depends="
+	libgcc
+	libstdc++
+	"
+subpackages="$pkgname-doc $pkgname-openrc"
+source=""
+options="!check"  # No test suite
+giturl="https://github.com/g4klx/DAPNETGateway.git"
+
+# We'll clone the git repo in prepare() instead of using source
+prepare() {
+	# Clean any existing source
+	rm -rf "$srcdir/DAPNETGateway"
+	
+	# Clone the repository
+	msg "Cloning DAPNETGateway from $giturl"
+	git clone "$giturl" "$srcdir/DAPNETGateway"
+	cd "$srcdir/DAPNETGateway"
+	
+	# Get the version info that will be embedded in the binary
+	local git_version=$(git describe --tags --always)
+	msg "DAPNETGateway git version: $git_version"
+	
+	# Apply any patches if needed
+	cd "$srcdir"
+	default_prepare || true
+}
+
+build() {
+	cd "$srcdir/DAPNETGateway"
+	
+	# Clean previous builds
+	make clean
+	
+	# Build with appropriate flags for Alpine
+	make \
+		CFLAGS="$CFLAGS" \
+		CXXFLAGS="$CXXFLAGS" \
+		LDFLAGS="$LDFLAGS" \
+		-j $(nproc) \
+		all
+}
+
+package() {
+	cd "$srcdir/DAPNETGateway"
+	
+	# Install the main binary
+	install -Dm755 DAPNETGateway "$pkgdir"/usr/bin/DAPNETGateway
+	
+	# Install configuration sample to /usr/share
+	install -Dm644 DAPNETGateway.ini "$pkgdir"/usr/share/pocsagclients/DAPNETGateway.ini.sample
+	
+	# Also install a copy to /etc for actual use
+	install -dm755 "$pkgdir"/etc/pocsagclients
+	install -Dm644 DAPNETGateway.ini "$pkgdir"/etc/pocsagclients/DAPNETGateway.ini.example
+	
+	# Install systemd service file if it exists (for reference)
+	if [ -f linux/systemd/dapnetgateway.service ]; then
+		install -Dm644 linux/systemd/dapnetgateway.service \
+			"$pkgdir"/usr/share/doc/$pkgname/dapnetgateway.service.example
+	elif [ -f dapnetgateway.service ]; then
+		install -Dm644 dapnetgateway.service \
+			"$pkgdir"/usr/share/doc/$pkgname/dapnetgateway.service.example
+	fi
+	
+	# Install README if it exists
+	if [ -f README.md ]; then
+		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README.md
+	elif [ -f README ]; then
+		install -Dm644 README "$pkgdir"/usr/share/doc/$pkgname/README
+	fi
+	
+	# Look for license file
+	mkdir -p "$pkgdir"/usr/share/licenses/$pkgname
+	if [ -f LICENSE ]; then
+		install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	elif [ -f COPYING ]; then
+		install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
+	elif [ -f LICENSE.txt ]; then
+		install -Dm644 LICENSE.txt "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	else
+		# If no license file found, create a reference
+		echo "GPL-2.0-or-later - See upstream repository" > "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	fi
+	
+	# Create necessary directories
+	install -dm755 "$pkgdir"/var/log/pocsagclients
+	install -dm755 "$pkgdir"/etc/pocsagclients
+	install -dm755 "$pkgdir"/usr/share/pocsagclients
+	
+	# Install OpenRC init script
+	install -Dm755 "$srcdir"/../dapnetgateway.initd "$pkgdir"/etc/init.d/dapnetgateway
+	install -Dm644 "$srcdir"/../dapnetgateway.confd "$pkgdir"/etc/conf.d/dapnetgateway
+}
+
+doc() {
+	default_doc
+}
+
+openrc() {
+    default_openrc
+    install_if=
+}

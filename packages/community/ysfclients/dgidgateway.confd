@@ -1,0 +1,11 @@
+# Configuration for DGId Gateway service
+
+# Configuration file location
+# DGIDGATEWAY_CONFIG="/etc/ysfclients/DGIdGateway.ini"
+
+# User and group to run as
+# DGIDGATEWAY_USER="dgid"
+# DGIDGATEWAY_GROUP="dgid"
+
+# Log file location
+# DGIDGATEWAY_LOGFILE="/var/log/ysfclients/dgidgateway.log"

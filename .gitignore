@@ -1,0 +1,26 @@
+# Private keys (should be in GitHub Secrets)
+keys/*.rsa
+keys/private/
+
+# Build artifacts
+*.apk
+*.tar.gz
+build/
+tmp/
+work/
+src/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Repository indexes (generated)
+APKINDEX.tar.gz
+APKINDEX.unsigned.tar.gz

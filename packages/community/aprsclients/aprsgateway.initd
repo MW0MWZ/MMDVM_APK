@@ -1,0 +1,60 @@
+#!/sbin/openrc-run
+# OpenRC init script for APRSGateway
+
+name="APRSGateway"
+description="APRS Gateway for Amateur Radio - Gateway between APRS-IS and RF networks"
+
+# Configuration
+: ${APRSGATEWAY_CONFIG:="/etc/aprsclients/APRSGateway.ini"}
+: ${APRSGATEWAY_USER:="aprs"}
+: ${APRSGATEWAY_GROUP:="aprs"}
+: ${APRSGATEWAY_LOGFILE:="/var/log/aprsclients/aprsgateway.log"}
+
+command="/usr/bin/APRSGateway"
+command_args="${APRSGATEWAY_CONFIG}"
+command_user="${APRSGATEWAY_USER}:${APRSGATEWAY_GROUP}"
+command_background=true
+pidfile="/run/${RC_SVCNAME}.pid"
+start_stop_daemon_args="--stdout ${APRSGATEWAY_LOGFILE} --stderr ${APRSGATEWAY_LOGFILE}"
+
+depend() {
+	need net
+	after firewall mmdvmhost
+	use logger dns
+}
+
+start_pre() {
+	# Check if configuration exists
+	if [ ! -f "${APRSGATEWAY_CONFIG}" ]; then
+		eerror "Configuration file ${APRSGATEWAY_CONFIG} does not exist"
+		eerror "Please create it from the example: cp /etc/aprsclients/APRSGateway.ini.example ${APRSGATEWAY_CONFIG}"
+		return 1
+	fi
+	
+	# Create log directory if it doesn't exist
+	checkpath -d -o "${APRSGATEWAY_USER}:${APRSGATEWAY_GROUP}" -m 0755 /var/log/aprsclients
+	
+	# Create log file if it doesn't exist
+	checkpath -f -o "${APRSGATEWAY_USER}:${APRSGATEWAY_GROUP}" -m 0644 "${APRSGATEWAY_LOGFILE}"
+	
+	# Create user if it doesn't exist
+	if ! id -u "${APRSGATEWAY_USER}" >/dev/null 2>&1; then
+		einfo "Creating user ${APRSGATEWAY_USER}"
+		adduser -D -H -s /sbin/nologin -G "${APRSGATEWAY_GROUP}" "${APRSGATEWAY_USER}" 2>/dev/null || \
+		adduser -D -H -s /sbin/nologin "${APRSGATEWAY_USER}" 2>/dev/null
+		
+		# Add to dialout group for serial port access (for TNC)
+		addgroup "${APRSGATEWAY_USER}" dialout 2>/dev/null || true
+	fi
+}
+
+stop_post() {
+	# Give the process a moment to clean up
+	sleep 1
+}
+
+reload() {
+	ebegin "Reloading ${name} configuration"
+	start-stop-daemon --signal HUP --pidfile "${pidfile}"
+	eend $?
+}

@@ -1,0 +1,14 @@
+# Configuration for DAPNETGateway service
+
+# Configuration file location
+# DAPNETGATEWAY_CONFIG="/etc/pocsagclients/DAPNETGateway.ini"
+
+# User and group to run as
+# DAPNETGATEWAY_USER="dapnet"
+# DAPNETGATEWAY_GROUP="dapnet"
+
+# Log file location
+# DAPNETGATEWAY_LOGFILE="/var/log/pocsagclients/dapnetgateway.log"
+
+# Additional command line options
+# DAPNETGATEWAY_OPTS=""

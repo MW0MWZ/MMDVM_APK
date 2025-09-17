@@ -1,0 +1,15 @@
+# Configuration for APRSGateway service
+
+# Configuration file location
+# APRSGATEWAY_CONFIG="/etc/aprsclients/APRSGateway.ini"
+
+# User and group to run as
+# Note: User should be in 'dialout' group for TNC serial port access
+# APRSGATEWAY_USER="aprs"
+# APRSGATEWAY_GROUP="aprs"
+
+# Log file location
+# APRSGATEWAY_LOGFILE="/var/log/aprsclients/aprsgateway.log"
+
+# Additional command line options
+# APRSGATEWAY_OPTS=""

@@ -1,0 +1,57 @@
+#!/sbin/openrc-run
+# OpenRC init script for DMR Gateway
+
+name="DMR Gateway"
+description="DMR Gateway for Amateur Radio digital communications"
+
+# Configuration
+: ${DMRGATEWAY_CONFIG:="/etc/dmrclients/DMRGateway.ini"}
+: ${DMRGATEWAY_USER:="dmr"}
+: ${DMRGATEWAY_GROUP:="dmr"}
+: ${DMRGATEWAY_LOGFILE:="/var/log/dmrclients/dmrgateway.log"}
+
+command="/usr/bin/DMRGateway"
+command_args="${DMRGATEWAY_CONFIG}"
+command_user="${DMRGATEWAY_USER}:${DMRGATEWAY_GROUP}"
+command_background=true
+pidfile="/run/${RC_SVCNAME}.pid"
+start_stop_daemon_args="--stdout ${DMRGATEWAY_LOGFILE} --stderr ${DMRGATEWAY_LOGFILE}"
+
+depend() {
+	need net
+	after firewall
+	use logger dns
+}
+
+start_pre() {
+	# Check if configuration exists
+	if [ ! -f "${DMRGATEWAY_CONFIG}" ]; then
+		eerror "DMRGateway configuration file ${DMRGATEWAY_CONFIG} does not exist"
+		eerror "Please create it from: cp /etc/dmrclients/DMRGateway.ini.example ${DMRGATEWAY_CONFIG}"
+		return 1
+	fi
+	
+	# Create log directory if it doesn't exist
+	checkpath -d -o "${DMRGATEWAY_USER}:${DMRGATEWAY_GROUP}" -m 0755 /var/log/dmrclients
+	
+	# Create log file if it doesn't exist
+	checkpath -f -o "${DMRGATEWAY_USER}:${DMRGATEWAY_GROUP}" -m 0644 "${DMRGATEWAY_LOGFILE}"
+	
+	# Create user if it doesn't exist
+	if ! id -u "${DMRGATEWAY_USER}" >/dev/null 2>&1; then
+		einfo "Creating user ${DMRGATEWAY_USER}"
+		adduser -D -H -s /sbin/nologin -G "${DMRGATEWAY_GROUP}" "${DMRGATEWAY_USER}" 2>/dev/null || \
+		adduser -D -H -s /sbin/nologin "${DMRGATEWAY_USER}" 2>/dev/null
+	fi
+}
+
+stop_post() {
+	# Give the process a moment to clean up
+	sleep 1
+}
+
+reload() {
+	ebegin "Reloading ${name} configuration"
+	start-stop-daemon --signal HUP --pidfile "${pidfile}"
+	eend $?
+}

@@ -1,0 +1,18 @@
+# Configuration for YSF Gateway service
+
+# Configuration file locations
+# YSFGATEWAY_CONFIG="/etc/ysfclients/YSFGateway.ini"
+# YSFPARROT_CONFIG="/etc/ysfclients/YSFParrot.ini"
+
+# User and group to run as
+# YSFGATEWAY_USER="ysf"
+# YSFGATEWAY_GROUP="ysf"
+
+# Log file locations
+# YSFGATEWAY_LOGFILE="/var/log/ysfclients/ysfgateway.log"
+# YSFPARROT_LOGFILE="/var/log/ysfclients/ysfparrot.log"
+
+# Enable/disable individual services
+# Set to "yes" to enable, "no" to disable
+# ENABLE_YSFGATEWAY="yes"
+# ENABLE_YSFPARROT="yes"
