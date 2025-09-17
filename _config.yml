@@ -1,0 +1,15 @@
+# GitHub Pages configuration for APK repository
+title: Ham Radio APK Repository
+description: Alpine Linux packages for Ham Radio software
+baseurl: ""
+url: "https://apk.pistar.uk"
+
+# Exclude files from being served
+exclude:
+  - packages
+  - scripts
+  - keys
+  - .github
+  - README.md
+  - setup-repo.sh
+  - docs
