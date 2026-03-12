@@ -13,10 +13,13 @@ license="GPL-2.0-or-later"
 makedepends="
 	build-base
 	git
+	mosquitto-dev
+	nlohmann-json
 	"
 depends="
 	libgcc
 	libstdc++
+	mosquitto-libs
 	"
 subpackages="$pkgname-doc $pkgname-openrc"
 source=""

@@ -51,11 +51,11 @@ All gateway packages follow the "*clients" naming convention and include gateway
 - **DMR2NXDN** - Cross-mode: DMR to NXDN converter
 
 #### D-Star Ecosystem (`dstarclients`)
-- **ircDDBGateway** - IRC DDB Gateway for D-Star
 - **DStarGateway** - D-Star Gateway
-- **remotecontrold** - Remote control daemon
-- **starnetserverd** - STARnet server for group calls
-- **Additional tools** - Time server, text/voice transmit tools
+- **dgwremotecontrol** - Remote control tool
+- **dgwtexttransmit** - Text transmit tool
+- **dgwtimeserver** - Time server
+- **dgwvoicetransmit** - Voice transmit tool
 
 #### YSF/Fusion Ecosystem (`ysfclients`)
 - **YSFGateway** - Yaesu System Fusion gateway
@@ -458,9 +458,7 @@ ysfclients/
 Multiple binaries from multiple sources:
 ```
 dstarclients/
-├── APKBUILD              # Builds from 2 repositories
-├── ircddbgateway.initd   # IRC DDB Gateway
-├── ircddbgateway.confd
+├── APKBUILD              # Builds from DStarGateway repository
 ├── dstargateway.initd    # D-Star Gateway
 ├── dstargateway.confd
 ├── starnetserver.initd   # STARnet server

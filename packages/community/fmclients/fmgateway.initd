@@ -15,7 +15,7 @@ command_args="${FMGATEWAY_CONFIG}"
 command_user="${FMGATEWAY_USER}:${FMGATEWAY_GROUP}"
 command_background=true
 pidfile="/run/${RC_SVCNAME}.pid"
-start_stop_daemon_args="--stdout ${FMGATEWAY_LOGFILE} --stderr ${FMGATEWAY_LOGFILE}"
+start_stop_daemon_args=""
 
 depend() {
 	need net
@@ -33,10 +33,7 @@ start_pre() {
 	
 	# Create log directory if it doesn't exist
 	checkpath -d -o "${FMGATEWAY_USER}:${FMGATEWAY_GROUP}" -m 0755 /var/log/fmclients
-	
-	# Create log file if it doesn't exist
-	checkpath -f -o "${FMGATEWAY_USER}:${FMGATEWAY_GROUP}" -m 0644 "${FMGATEWAY_LOGFILE}"
-	
+
 	# Create user if it doesn't exist
 	if ! id -u "${FMGATEWAY_USER}" >/dev/null 2>&1; then
 		einfo "Creating user ${FMGATEWAY_USER}"

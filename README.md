@@ -28,7 +28,7 @@ Alpine Linux package repository for Ham Radio software, hosted on GitHub Pages.
 | Package | Description | Components | Upstream |
 |---------|-------------|------------|----------|
 | **dmrclients** | DMR Gateway and Cross-Mode converters | DMRGateway, DMR2YSF, DMR2NXDN | [DMRGateway](https://github.com/g4klx/DMRGateway) & [MMDVM_CM](https://github.com/nostar/MMDVM_CM) |
-| **dstarclients** | D-Star Gateways and tools | ircDDBGateway, DStarGateway, remotecontrold, starnetserverd, and more | [ircDDBGateway](https://github.com/g4klx/ircDDBGateway) & [DStarGateway](https://github.com/F4FXL/DStarGateway) |
+| **dstarclients** | D-Star Gateway and tools | DStarGateway, dgwremotecontrol, dgwtexttransmit, dgwtimeserver, dgwvoicetransmit | [DStarGateway](https://github.com/g4klx/DStarGateway) |
 | **ysfclients** | YSF Gateway, Parrot, DGId Gateway and Cross-Mode converters | YSFGateway, YSFParrot, DGIdGateway, YSF2DMR, YSF2NXDN, YSF2P25 | [YSFClients](https://github.com/g4klx/YSFClients) & [MMDVM_CM](https://github.com/nostar/MMDVM_CM) |
 | **nxdnclients** | NXDN Gateway, Parrot and Cross-Mode converter | NXDNGateway, NXDNParrot, NXDN2DMR | [NXDNClients](https://github.com/g4klx/NXDNClients) & [MMDVM_CM](https://github.com/nostar/MMDVM_CM) |
 | **p25clients** | P25 Gateway and Parrot | P25Gateway, P25Parrot | [P25Clients](https://github.com/g4klx/P25Clients) |
@@ -91,7 +91,6 @@ rc-service ysfgateway start     # YSF Gateway + Parrot
 rc-service dgidgateway start    # DGId Gateway
 rc-service nxdngateway start    # NXDN Gateway + Parrot
 rc-service p25gateway start     # P25 Gateway + Parrot
-rc-service ircddbgateway start  # IRC DDB Gateway for D-Star
 rc-service dstargateway start   # D-Star Gateway
 rc-service dstarrepeater start  # D-Star Repeater Controller
 
@@ -157,7 +156,7 @@ MMDVM_APK/
 │   ├── mmdvmhost/
 │   ├── dstarrepeater/   # D-Star Repeater Controller
 │   ├── dmrclients/      # DMRGateway, DMR2YSF, DMR2NXDN
-│   ├── dstarclients/    # ircDDBGateway, DStarGateway, and tools
+│   ├── dstarclients/    # DStarGateway and tools
 │   ├── ysfclients/      # YSFGateway, YSFParrot, DGIdGateway, YSF2*
 │   ├── nxdnclients/     # NXDNGateway, NXDNParrot, NXDN2DMR
 │   ├── p25clients/      # P25Gateway, P25Parrot

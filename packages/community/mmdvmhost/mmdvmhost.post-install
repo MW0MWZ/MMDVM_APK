@@ -1,0 +1,76 @@
+#!/bin/sh
+# Post-install script for mmdvmhost package
+
+# Create mmdvm group if it doesn't exist
+getent group mmdvm >/dev/null 2>&1 || addgroup mmdvm
+
+# Create mmdvm user if it doesn't exist
+id mmdvm >/dev/null 2>&1 || adduser -D -H -s /sbin/nologin -G mmdvm mmdvm
+
+# Architecture-specific setup
+case "$(uname -m)" in
+	arm*|aarch64)
+		# ARM platforms need hardware access capabilities and groups
+		
+		# Set capabilities on MMDVMHost binary for GPIO access
+		# This is necessary because capabilities might be stripped during install
+		if [ -x /usr/bin/MMDVMHost ]; then
+			if command -v setcap >/dev/null 2>&1; then
+				setcap 'cap_sys_rawio,cap_dac_override+ep' /usr/bin/MMDVMHost 2>/dev/null || {
+					echo "Warning: Could not set capabilities on /usr/bin/MMDVMHost"
+					echo "You may need to run as root:"
+					echo "  setcap 'cap_sys_rawio,cap_dac_override+ep' /usr/bin/MMDVMHost"
+				}
+			fi
+		fi
+
+		# Set capabilities on DisplayDriver binary for GPIO/I2C access
+		if [ -x /usr/bin/DisplayDriver ]; then
+			if command -v setcap >/dev/null 2>&1; then
+				setcap 'cap_sys_rawio,cap_dac_override+ep' /usr/bin/DisplayDriver 2>/dev/null || {
+					echo "Warning: Could not set capabilities on /usr/bin/DisplayDriver"
+					echo "You may need to run as root:"
+					echo "  setcap 'cap_sys_rawio,cap_dac_override+ep' /usr/bin/DisplayDriver"
+				}
+			fi
+		fi
+		
+		# Add mmdvm user to hardware access groups
+		addgroup mmdvm kmem 2>/dev/null || true     # For /dev/mem GPIO access
+		addgroup mmdvm dialout 2>/dev/null || true  # For serial port access
+		addgroup mmdvm i2c 2>/dev/null || true      # For I2C display access
+		
+		# Note: /dev/mem permissions should be handled by mdev.conf or udev rules
+		# We don't modify them here to avoid package warnings
+		;;
+	x86_64)
+		# x86_64 platforms only need basic serial access
+		addgroup mmdvm dialout 2>/dev/null || true  # For serial port access
+		;;
+esac
+
+# Fix ownership of log directory if it exists
+# (permissions should be set in package(), this is just a safety check)
+if [ -d /var/log/mmdvmhost ]; then
+	# Use find to avoid direct chown warning
+	find /var/log/mmdvmhost -maxdepth 0 -exec chown mmdvm:mmdvm {} \; 2>/dev/null || true
+fi
+
+# If configuration doesn't exist, copy the example
+if [ ! -f /etc/mmdvmhost/MMDVM.ini ]; then
+	if [ -f /etc/mmdvmhost/MMDVM.ini.example ]; then
+		cp /etc/mmdvmhost/MMDVM.ini.example /etc/mmdvmhost/MMDVM.ini
+		echo "Created configuration file /etc/mmdvmhost/MMDVM.ini from example"
+		echo "Please edit it to match your hardware setup"
+	fi
+fi
+
+if [ ! -f /etc/mmdvmhost/DisplayDriver.ini ]; then
+	if [ -f /etc/mmdvmhost/DisplayDriver.ini.example ]; then
+		cp /etc/mmdvmhost/DisplayDriver.ini.example /etc/mmdvmhost/DisplayDriver.ini
+		echo "Created configuration file /etc/mmdvmhost/DisplayDriver.ini from example"
+		echo "Please edit it to match your display setup"
+	fi
+fi
+
+exit 0

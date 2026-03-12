@@ -54,11 +54,7 @@ start_pre() {
 	
 	# Create log directory if it doesn't exist
 	checkpath -d -o "${YSFGATEWAY_USER}:${YSFGATEWAY_GROUP}" -m 0755 /var/log/ysfclients
-	
-	# Create log files if they don't exist
-	checkpath -f -o "${YSFGATEWAY_USER}:${YSFGATEWAY_GROUP}" -m 0644 "${YSFGATEWAY_LOGFILE}"
-	checkpath -f -o "${YSFGATEWAY_USER}:${YSFGATEWAY_GROUP}" -m 0644 "${YSFPARROT_LOGFILE}"
-	
+
 	# Create user if it doesn't exist
 	if ! id -u "${YSFGATEWAY_USER}" >/dev/null 2>&1; then
 		einfo "Creating user ${YSFGATEWAY_USER}"

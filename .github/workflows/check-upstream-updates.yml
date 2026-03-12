@@ -103,7 +103,7 @@ jobs:
             
             # Check for package-specific git URLs if main one not found
             if [ -z "$giturl" ]; then
-              for var in mmdvm_cm_giturl dmrgateway_giturl nxdnclients_giturl ircddbgateway_giturl dstargateway_giturl; do
+              for var in mmdvm_cm_giturl dmrgateway_giturl nxdnclients_giturl dstargateway_giturl; do
                 giturl=$(grep "^${var}=" "$apkbuild" | head -1 | cut -d'"' -f2)
                 if [ -n "$giturl" ]; then
                   giturl_var="$var"
@@ -125,7 +125,7 @@ jobs:
               # Standard commit variable
               current_commit=$(grep "^_gitcommit=" "$apkbuild" | cut -d'"' -f2)
             else
-              # Package-specific commit variable (e.g., _ircddbgateway_gitcommit for ircddbgateway_giturl)
+              # Package-specific commit variable (e.g., _dstargateway_gitcommit for dstargateway_giturl)
               local commit_var="_${giturl_var%_giturl}_gitcommit"
               current_commit=$(grep "^${commit_var}=" "$apkbuild" | cut -d'"' -f2)
               
@@ -304,7 +304,7 @@ jobs:
             giturl_var="giturl"
             
             if [ -z "$giturl" ]; then
-              for var in mmdvm_cm_giturl dmrgateway_giturl nxdnclients_giturl ircddbgateway_giturl dstargateway_giturl; do
+              for var in mmdvm_cm_giturl dmrgateway_giturl nxdnclients_giturl dstargateway_giturl; do
                 giturl=$(grep "^${var}=" "$APKBUILD" | head -1 | cut -d'"' -f2)
                 if [ -n "$giturl" ]; then
                   giturl_var="$var"

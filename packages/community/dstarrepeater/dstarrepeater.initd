@@ -26,20 +26,16 @@ depend() {
 }
 
 start_pre() {
-	# Ensure the dstar user exists
-	if ! getent passwd "$DSTAR_USER" >/dev/null 2>&1; then
-		eerror "User '$DSTAR_USER' does not exist"
-		eerror "Please create the user with: adduser -S -D -H -h /var/lib/dstarrepeater -s /sbin/nologin -G $DSTAR_GROUP -g \"D-Star Repeater\" $DSTAR_USER"
-		return 1
+	# Create user if it doesn't exist
+	if ! id -u "${DSTAR_USER}" >/dev/null 2>&1; then
+		einfo "Creating user ${DSTAR_USER}"
+		adduser -D -H -h /var/lib/dstarrepeater -s /sbin/nologin -G "${DSTAR_GROUP}" "${DSTAR_USER}" 2>/dev/null || \
+		adduser -D -H -s /sbin/nologin "${DSTAR_USER}" 2>/dev/null
+		
+		# Add to dialout group for serial port access (for Modem Access)
+		addgroup "${DSTAR_USER}" dialout 2>/dev/null || true
 	fi
-	
-	# Ensure the dstar group exists
-	if ! getent group "$DSTAR_GROUP" >/dev/null 2>&1; then
-		eerror "Group '$DSTAR_GROUP' does not exist"
-		eerror "Please create the group with: addgroup -S $DSTAR_GROUP"
-		return 1
-	fi
-	
+
 	# Check for configuration file
 	if [ ! -f "$DSTAR_CONFIG" ]; then
 		eerror "Configuration file $DSTAR_CONFIG does not exist"

@@ -1,0 +1,11 @@
+# Configuration for DisplayDriver service
+
+# Configuration file location
+# DISPLAYDRIVER_CONFIG="/etc/mmdvmhost/DisplayDriver.ini"
+
+# User and group to run as
+# DISPLAYDRIVER_USER="mmdvm"
+# DISPLAYDRIVER_GROUP="mmdvm"
+
+# Log file location
+# DISPLAYDRIVER_LOGFILE="/var/log/mmdvmhost/displaydriver.log"

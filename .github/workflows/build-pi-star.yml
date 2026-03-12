@@ -1,0 +1,451 @@
+name: Build Pi-Star APK
+
+# Triggered exclusively by Pi-Star_MCP release workflow
+on:
+  repository_dispatch:
+    types: [build-pi-star]
+
+concurrency:
+  group: build-pi-star
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build pi-star for ${{ matrix.arch }} on Alpine ${{ matrix.alpine_version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [x86_64, armhf, aarch64]
+        alpine_version: ['3.22']
+        include:
+          - arch: x86_64
+            platform: linux/amd64
+            binary: pistar-mcp-linux-amd64
+          - arch: armhf
+            platform: linux/arm/v6
+            binary: pistar-mcp-linux-arm
+          - arch: aarch64
+            platform: linux/arm64
+            binary: pistar-mcp-linux-arm64
+      fail-fast: false
+      max-parallel: 3
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout gh-pages for version checking
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages-check
+        continue-on-error: true
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Download release assets from Pi-Star_MCP
+        env:
+          GH_TOKEN: ${{ secrets.PISTAR_MCP_TOKEN }}
+        run: |
+          set -e
+          VERSION="${{ github.event.client_payload.version }}"
+          REPO="${{ github.event.client_payload.repo }}"
+          TAG="${{ github.event.client_payload.tag }}"
+
+          echo "Downloading Pi-Star MCP $VERSION from $REPO"
+
+          mkdir -p release-assets
+          cd release-assets
+
+          # Download the binary for this architecture
+          gh release download "$TAG" \
+            --repo "$REPO" \
+            --pattern "${{ matrix.binary }}"
+
+          # Download Alpine packaging files
+          gh release download "$TAG" \
+            --repo "$REPO" \
+            --pattern "packaging-alpine.tar.gz"
+
+          # Extract packaging files
+          tar xzf packaging-alpine.tar.gz
+          rm packaging-alpine.tar.gz
+
+          ls -la
+
+      - name: Determine release number
+        id: release
+        run: |
+          VERSION="${{ github.event.client_payload.version }}"
+          RELEASE="${{ github.event.client_payload.release }}"
+
+          # Use release number from dispatch payload (from tag YYYY.MM.DD.RR)
+          # Fall back to auto-increment if not provided (backwards compatibility)
+          if [ -n "$RELEASE" ]; then
+            PKG_RELEASE="$RELEASE"
+          else
+            PKG_RELEASE="0"
+            ALPINE_VERSION="${{ matrix.alpine_version }}"
+
+            # Check existing packages across all architectures
+            for CHECK_ARCH in x86_64 armhf aarch64 noarch; do
+              GH_PAGES_DIR="gh-pages-check/v${ALPINE_VERSION}/community/${CHECK_ARCH}"
+              if [ -d "$GH_PAGES_DIR" ]; then
+                EXISTING=$(ls -1 "$GH_PAGES_DIR/pi-star-${VERSION}-r"*.apk 2>/dev/null | sort -V || true)
+                if [ -n "$EXISTING" ]; then
+                  for PKG_FILE in $EXISTING; do
+                    REL=$(echo "$PKG_FILE" | sed -n "s/.*-r\([0-9]*\)\.apk/\1/p")
+                    if [ -n "$REL" ] && [ "$REL" -ge "$PKG_RELEASE" ]; then
+                      PKG_RELEASE=$REL
+                    fi
+                  done
+                fi
+              fi
+            done
+
+            # Increment for this new build
+            PKG_RELEASE=$((PKG_RELEASE + 1))
+          fi
+
+          echo "release=${PKG_RELEASE}" >> $GITHUB_OUTPUT
+          echo "Package version: ${VERSION}-r${PKG_RELEASE}"
+
+      - name: Build APK package
+        env:
+          APK_PRIVATE_KEY: ${{ secrets.APK_PRIVATE_KEY }}
+          ARCH: ${{ matrix.arch }}
+          PLATFORM: ${{ matrix.platform }}
+          ALPINE_VERSION: ${{ matrix.alpine_version }}
+          VERSION: ${{ github.event.client_payload.version }}
+          PKG_RELEASE: ${{ steps.release.outputs.release }}
+        run: |
+          set -e
+
+          OUTPUT_DIR="repo/v${ALPINE_VERSION}/community/${ARCH}"
+          NOARCH_DIR="repo/v${ALPINE_VERSION}/community/noarch"
+          mkdir -p "$OUTPUT_DIR"
+
+          # Only build noarch subpackages on x86_64
+          if [ "$ARCH" = "x86_64" ]; then
+            mkdir -p "$NOARCH_DIR"
+            BUILD_NOARCH="yes"
+          else
+            BUILD_NOARCH="no"
+          fi
+
+          # Prepare build directory
+          TEMP_DIR=$(mktemp -d)
+          trap "rm -rf $TEMP_DIR" EXIT
+
+          # Copy APKBUILD and supporting files
+          cp release-assets/APKBUILD "$TEMP_DIR/"
+          cp release-assets/pistar-mcp.initd "$TEMP_DIR/"
+          cp release-assets/pistar-mcp.confd "$TEMP_DIR/"
+          cp release-assets/pi-star.post-install "$TEMP_DIR/"
+          cp release-assets/pistar-mcp.ini.example "$TEMP_DIR/"
+
+          # Copy the binary (renamed to pistar-mcp)
+          cp "release-assets/${{ matrix.binary }}" "$TEMP_DIR/pistar-mcp"
+
+          # Set version in APKBUILD
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" "$TEMP_DIR/APKBUILD"
+          sed -i "s/^pkgrel=.*/pkgrel=${PKG_RELEASE}/" "$TEMP_DIR/APKBUILD"
+
+          # Setup signing keys
+          echo "$APK_PRIVATE_KEY" > "$TEMP_DIR/hamradio.rsa"
+          cp keys/hamradio.rsa.pub "$TEMP_DIR/"
+
+          # Build in Docker
+          docker run --rm \
+            --platform "$PLATFORM" \
+            -v "$TEMP_DIR:/build:ro" \
+            -v "$(pwd)/$OUTPUT_DIR:/output" \
+            -v "$(pwd)/$NOARCH_DIR:/output-noarch" \
+            -e BUILD_NOARCH="$BUILD_NOARCH" \
+            "alpine:${ALPINE_VERSION}" \
+            sh -c '
+              set -e
+
+              # Add RasPINE repo first for ARM (wiringPi 3.x lives here)
+              if [ "'${ARCH}'" != "x86_64" ]; then
+                wget -q -O /etc/apk/keys/raspine.rsa.pub https://raspine.pistar.uk/raspine.rsa.pub
+                echo "https://raspine.pistar.uk/v'${ALPINE_VERSION}'/community" >> /etc/apk/repositories
+              fi
+
+              # Add Pi-Star hamradio repo (MMDVM packages live here)
+              wget -q -O /etc/apk/keys/hamradio.rsa.pub https://apk.pistar.uk/hamradio.rsa.pub
+              echo "https://apk.pistar.uk/v'${ALPINE_VERSION}'/community" >> /etc/apk/repositories
+
+              # Add Alpine community repo
+              echo "https://dl-cdn.alpinelinux.org/alpine/v'${ALPINE_VERSION}'/community" >> /etc/apk/repositories
+              apk update
+              apk add --no-cache alpine-sdk sudo
+
+              adduser -D builder
+              addgroup builder abuild
+              echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+              # Copy all files to builder home
+              cp -r /build/* /home/builder/
+              chown -R builder:builder /home/builder/
+
+              # Setup signing keys
+              mkdir -p /home/builder/.abuild
+              cp /home/builder/hamradio.rsa /home/builder/.abuild/
+              cp /home/builder/hamradio.rsa.pub /home/builder/.abuild/
+              echo "PACKAGER_PRIVKEY=\"/home/builder/.abuild/hamradio.rsa\"" > /home/builder/.abuild/abuild.conf
+              cp /home/builder/hamradio.rsa.pub /etc/apk/keys/
+
+              cd /home/builder
+
+              # Strip noarch subpackages on non-x86_64
+              if [ "$BUILD_NOARCH" = "no" ]; then
+                sed -i "/^subpackages=/s/\$pkgname-openrc//g" APKBUILD
+                sed -i "s/subpackages=\"\s*\"/subpackages=\"\"/g" APKBUILD
+              fi
+
+              # Run abuild
+              su builder -c "abuild -r"
+
+              # Copy packages to output
+              find /home/builder/packages -name "*.apk" -type f | while read pkg; do
+                PKG_NAME=$(basename "$pkg")
+                PKG_INFO=$(tar -xzOf "$pkg" .PKGINFO 2>/dev/null || true)
+                PKG_ARCH=$(echo "$PKG_INFO" | grep "^arch = " | cut -d" " -f3)
+
+                if [ "$PKG_ARCH" = "noarch" ]; then
+                  if [ "$BUILD_NOARCH" = "yes" ]; then
+                    cp "$pkg" /output-noarch/
+                  fi
+                else
+                  cp "$pkg" /output/
+                fi
+              done
+            '
+
+          rm -f "$TEMP_DIR/hamradio.rsa"
+
+          echo "Built packages:"
+          ls -la "$OUTPUT_DIR"/*.apk 2>/dev/null || echo "No arch-specific packages"
+          ls -la "$NOARCH_DIR"/*.apk 2>/dev/null || echo "No noarch packages"
+
+      - name: Generate repository index
+        env:
+          APK_PRIVATE_KEY: ${{ secrets.APK_PRIVATE_KEY }}
+          ARCH: ${{ matrix.arch }}
+          PLATFORM: ${{ matrix.platform }}
+          ALPINE_VERSION: ${{ matrix.alpine_version }}
+        run: |
+          set -e
+
+          REPO_DIR="repo/v${ALPINE_VERSION}/community/${ARCH}"
+          if ls "$REPO_DIR"/*.apk >/dev/null 2>&1; then
+            TEMP_DIR=$(mktemp -d)
+            trap "rm -rf $TEMP_DIR" EXIT
+
+            echo "$APK_PRIVATE_KEY" > "$TEMP_DIR/hamradio.rsa"
+            cp keys/hamradio.rsa.pub "$TEMP_DIR/"
+
+            docker run --rm \
+              --platform "$PLATFORM" \
+              -v "$TEMP_DIR:/keys:ro" \
+              -v "$(pwd)/$REPO_DIR:/repo" \
+              "alpine:${ALPINE_VERSION}" \
+              sh -c '
+                set -e
+                echo "https://dl-cdn.alpinelinux.org/alpine/v'${ALPINE_VERSION}'/community" >> /etc/apk/repositories
+                apk update
+                apk add --no-cache alpine-sdk
+                mkdir -p /root/.abuild
+                echo "PACKAGER_PRIVKEY=\"/keys/hamradio.rsa\"" > /root/.abuild/abuild.conf
+                cp /keys/hamradio.rsa.pub /etc/apk/keys/
+                cd /repo
+                rm -f APKINDEX.tar.gz APKINDEX.unsigned.tar.gz
+                apk index -o APKINDEX.unsigned.tar.gz *.apk
+                abuild-sign -k /keys/hamradio.rsa APKINDEX.unsigned.tar.gz
+                mv APKINDEX.unsigned.tar.gz APKINDEX.tar.gz
+              '
+
+            rm -f "$TEMP_DIR/hamradio.rsa"
+          fi
+
+          # Generate noarch index (only on x86_64)
+          if [ "$ARCH" = "x86_64" ]; then
+            NOARCH_DIR="repo/v${ALPINE_VERSION}/community/noarch"
+            if ls "$NOARCH_DIR"/*.apk >/dev/null 2>&1; then
+              TEMP_DIR=$(mktemp -d)
+              trap "rm -rf $TEMP_DIR" EXIT
+
+              echo "$APK_PRIVATE_KEY" > "$TEMP_DIR/hamradio.rsa"
+              cp keys/hamradio.rsa.pub "$TEMP_DIR/"
+
+              docker run --rm \
+                --platform "linux/amd64" \
+                -v "$TEMP_DIR:/keys:ro" \
+                -v "$(pwd)/$NOARCH_DIR:/repo" \
+                "alpine:${ALPINE_VERSION}" \
+                sh -c '
+                  set -e
+                  echo "https://dl-cdn.alpinelinux.org/alpine/v'${ALPINE_VERSION}'/community" >> /etc/apk/repositories
+                  apk update
+                  apk add --no-cache alpine-sdk
+                  mkdir -p /root/.abuild
+                  echo "PACKAGER_PRIVKEY=\"/keys/hamradio.rsa\"" > /root/.abuild/abuild.conf
+                  cp /keys/hamradio.rsa.pub /etc/apk/keys/
+                  cd /repo
+                  rm -f APKINDEX.tar.gz APKINDEX.unsigned.tar.gz
+                  apk index -o APKINDEX.unsigned.tar.gz *.apk
+                  abuild-sign -k /keys/hamradio.rsa APKINDEX.unsigned.tar.gz
+                  mv APKINDEX.unsigned.tar.gz APKINDEX.tar.gz
+                '
+
+              rm -f "$TEMP_DIR/hamradio.rsa"
+            fi
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pi-star-alpine${{ matrix.alpine_version }}-${{ matrix.arch }}
+          path: repo/
+          retention-days: 7
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    if: needs.build.result == 'success'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Merge new packages into repository
+        run: |
+          set -e
+
+          # Merge each artifact into gh-pages
+          for ARTIFACT_DIR in artifacts/pi-star-*/; do
+            echo "Merging: $ARTIFACT_DIR"
+            # Copy .apk files (not APKINDEX — we regenerate those)
+            find "$ARTIFACT_DIR" -name "*.apk" -type f | while read pkg; do
+              # Determine target directory from path structure
+              # artifact path: artifacts/pi-star-alpine3.22-x86_64/v3.22/community/x86_64/pkg.apk
+              REL_PATH=$(echo "$pkg" | sed "s|$ARTIFACT_DIR||")
+              TARGET_DIR="gh-pages/$(dirname "$REL_PATH")"
+              mkdir -p "$TARGET_DIR"
+              cp "$pkg" "$TARGET_DIR/"
+              echo "  Copied: $(basename "$pkg") -> $TARGET_DIR/"
+            done
+          done
+
+      - name: Regenerate repository indexes
+        env:
+          APK_PRIVATE_KEY: ${{ secrets.APK_PRIVATE_KEY }}
+        run: |
+          set -e
+
+          # Regenerate APKINDEX for each arch/version directory that has .apk files
+          for REPO_DIR in gh-pages/v*/community/*/; do
+            if ls "$REPO_DIR"/*.apk >/dev/null 2>&1; then
+              # Determine platform from directory name
+              DIR_ARCH=$(basename "$REPO_DIR")
+              ALPINE_VER=$(echo "$REPO_DIR" | grep -oP 'v\K[0-9.]+')
+
+              case "$DIR_ARCH" in
+                x86_64)  PLATFORM="linux/amd64" ;;
+                armhf)   PLATFORM="linux/arm/v6" ;;
+                aarch64) PLATFORM="linux/arm64" ;;
+                noarch)  PLATFORM="linux/amd64" ;;
+                *)       continue ;;
+              esac
+
+              echo "Regenerating index for $REPO_DIR (platform: $PLATFORM)"
+
+              TEMP_DIR=$(mktemp -d)
+              echo "$APK_PRIVATE_KEY" > "$TEMP_DIR/hamradio.rsa"
+              cp keys/hamradio.rsa.pub "$TEMP_DIR/"
+
+              docker run --rm \
+                --platform "$PLATFORM" \
+                -v "$TEMP_DIR:/keys:ro" \
+                -v "$(pwd)/$REPO_DIR:/repo" \
+                "alpine:${ALPINE_VER}" \
+                sh -c '
+                  set -e
+                  echo "https://dl-cdn.alpinelinux.org/alpine/v'${ALPINE_VER}'/community" >> /etc/apk/repositories
+                  apk update
+                  apk add --no-cache alpine-sdk
+                  mkdir -p /root/.abuild
+                  echo "PACKAGER_PRIVKEY=\"/keys/hamradio.rsa\"" > /root/.abuild/abuild.conf
+                  cp /keys/hamradio.rsa.pub /etc/apk/keys/
+                  cd /repo
+                  rm -f APKINDEX.tar.gz APKINDEX.unsigned.tar.gz
+                  apk index -o APKINDEX.unsigned.tar.gz *.apk
+                  abuild-sign -k /keys/hamradio.rsa APKINDEX.unsigned.tar.gz
+                  mv APKINDEX.unsigned.tar.gz APKINDEX.tar.gz
+                '
+
+              rm -f "$TEMP_DIR/hamradio.rsa"
+              rm -rf "$TEMP_DIR"
+            fi
+          done
+
+      - name: Deploy to gh-pages
+        run: |
+          set -e
+          cd gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to deploy"
+          else
+            VERSION="${{ github.event.client_payload.version }}"
+            git commit -m "pi-star ${VERSION}"
+            git push
+          fi
+
+      - name: Purge Cloudflare cache
+        if: success()
+        env:
+          CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: |
+          if [ -n "$CF_ZONE_ID" ] && [ -n "$CF_API_TOKEN" ]; then
+            curl -s -X POST \
+              "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/purge_cache" \
+              -H "Authorization: Bearer ${CF_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data '{"purge_everything":true}'
+            echo "Cloudflare cache purged"
+          else
+            echo "Cloudflare credentials not configured, skipping cache purge"
+          fi

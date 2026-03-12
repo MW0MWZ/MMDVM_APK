@@ -15,7 +15,7 @@ command_args="${DMR2YSF_CONFIG}"
 command_user="${DMR2YSF_USER}:${DMR2YSF_GROUP}"
 command_background=true
 pidfile="/run/${RC_SVCNAME}.pid"
-start_stop_daemon_args="--stdout ${DMR2YSF_LOGFILE} --stderr ${DMR2YSF_LOGFILE}"
+start_stop_daemon_args=""
 
 depend() {
 	need net
@@ -33,9 +33,6 @@ start_pre() {
 	
 	# Create log directory if it doesn't exist
 	checkpath -d -o "${DMR2YSF_USER}:${DMR2YSF_GROUP}" -m 0755 /var/log/dmrclients
-	
-	# Create log file if it doesn't exist
-	checkpath -f -o "${DMR2YSF_USER}:${DMR2YSF_GROUP}" -m 0644 "${DMR2YSF_LOGFILE}"
 	
 	# Create user if it doesn't exist
 	if ! id -u "${DMR2YSF_USER}" >/dev/null 2>&1; then

@@ -15,7 +15,7 @@ command_args="-config ${DSTARGATEWAY_CONFIG}"
 command_user="${DSTARGATEWAY_USER}:${DSTARGATEWAY_GROUP}"
 command_background=true
 pidfile="/run/${RC_SVCNAME}.pid"
-start_stop_daemon_args="--stdout ${DSTARGATEWAY_LOGFILE} --stderr ${DSTARGATEWAY_LOGFILE}"
+start_stop_daemon_args=""
 
 depend() {
 	need net
@@ -41,9 +41,6 @@ start_pre() {
 	
 	# Create log directory if it doesn't exist
 	checkpath -d -o "${DSTARGATEWAY_USER}:${DSTARGATEWAY_GROUP}" -m 0755 /var/log/dstarclients
-	
-	# Create log file if it doesn't exist
-	checkpath -f -o "${DSTARGATEWAY_USER}:${DSTARGATEWAY_GROUP}" -m 0644 "${DSTARGATEWAY_LOGFILE}"
 	
 	# Create user if it doesn't exist
 	if ! id -u "${DSTARGATEWAY_USER}" >/dev/null 2>&1; then

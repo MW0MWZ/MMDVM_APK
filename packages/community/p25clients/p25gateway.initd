@@ -54,11 +54,7 @@ start_pre() {
 	
 	# Create log directory if it doesn't exist
 	checkpath -d -o "${P25CLIENTS_USER}:${P25CLIENTS_GROUP}" -m 0755 /var/log/p25clients
-	
-	# Create log files if they don't exist
-	checkpath -f -o "${P25CLIENTS_USER}:${P25CLIENTS_GROUP}" -m 0644 "${P25GATEWAY_LOGFILE}"
-	checkpath -f -o "${P25CLIENTS_USER}:${P25CLIENTS_GROUP}" -m 0644 "${P25PARROT_LOGFILE}"
-	
+
 	# Create user if it doesn't exist
 	if ! id -u "${P25CLIENTS_USER}" >/dev/null 2>&1; then
 		einfo "Creating user ${P25CLIENTS_USER}"

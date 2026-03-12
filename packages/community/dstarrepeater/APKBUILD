@@ -5,7 +5,7 @@ pkgname=dstarrepeater
 pkgver=2025.01.01
 pkgrel=1
 # Git commit will be captured during build
-_gitcommit="fd7f1a1"
+_gitcommit="630ff49"
 pkgdesc="D-Star Repeater Controller for Amateur Radio - Dedicated D-Star only repeater system"
 url="https://github.com/g4klx/DStarRepeater"
 arch="all"
@@ -17,6 +17,7 @@ makedepends="
 	git
 	libusb-dev
 	alsa-lib-dev
+	mosquitto-dev
 	"
 depends="
 	libgcc
@@ -24,6 +25,7 @@ depends="
 	wxwidgets
 	libusb
 	alsa-lib
+	mosquitto-libs
 	"
 subpackages="$pkgname-doc $pkgname-openrc"
 source=""
@@ -90,19 +92,19 @@ build() {
 			if [ -f MakefilePi ]; then
 				# MakefilePi exists, use it for ARM with GPIO support
 				make -f MakefilePi clean || true
-				make -f MakefilePi -j $(nproc) all
+				make -f MakefilePi MQTT=1 -j $(nproc) all
 			else
 				# Use standard Makefile
 				make clean || true
-				make BUILD=release -j $(nproc) all
+				make BUILD=release MQTT=1 -j $(nproc) all
 			fi
 			;;
 		x86_64)
 			msg "Building DStarRepeater for x86_64"
-			
+
 			# Use the standard Makefile with release build
 			make clean || true
-			make BUILD=release -j $(nproc) all
+			make BUILD=release MQTT=1 -j $(nproc) all
 			;;
 	esac
 	
@@ -117,13 +119,13 @@ build() {
 			case "$CARCH" in
 				armhf|aarch64)
 					if [ -f MakefilePi ]; then
-						make -f MakefilePi -j $(nproc) all
+						make -f MakefilePi MQTT=1 -j $(nproc) all
 					else
-						make BUILD=release -j $(nproc) all
+						make BUILD=release MQTT=1 -j $(nproc) all
 					fi
 					;;
 				*)
-					make BUILD=release -j $(nproc) all
+					make BUILD=release MQTT=1 -j $(nproc) all
 					;;
 			esac
 			
@@ -169,6 +171,12 @@ package() {
 		cd ..
 	fi
 	
+	# Install Linux example config
+	if [ -f linux/dstarrepeater.example ]; then
+		install -Dm644 linux/dstarrepeater.example \
+			"$pkgdir"/etc/dstarrepeater/dstarrepeater.conf.example
+	fi
+
 	# Install configuration examples from each component
 	for component in DStarRepeater AnalogueRepeater DVAPNode DVRPTRRepeater GMSKRepeater SoundCardRepeater SplitRepeater; do
 		if [ -d "$component" ]; then

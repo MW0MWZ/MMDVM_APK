@@ -15,7 +15,7 @@ command_args="${DGIDGATEWAY_CONFIG}"
 command_user="${DGIDGATEWAY_USER}:${DGIDGATEWAY_GROUP}"
 command_background=true
 pidfile="/run/${RC_SVCNAME}.pid"
-start_stop_daemon_args="--stdout ${DGIDGATEWAY_LOGFILE} --stderr ${DGIDGATEWAY_LOGFILE}"
+start_stop_daemon_args=""
 
 depend() {
 	need net
@@ -33,10 +33,7 @@ start_pre() {
 	
 	# Create log directory if it doesn't exist
 	checkpath -d -o "${DGIDGATEWAY_USER}:${DGIDGATEWAY_GROUP}" -m 0755 /var/log/ysfclients
-	
-	# Create log file if it doesn't exist
-	checkpath -f -o "${DGIDGATEWAY_USER}:${DGIDGATEWAY_GROUP}" -m 0644 "${DGIDGATEWAY_LOGFILE}"
-	
+
 	# Create user if it doesn't exist
 	if ! id -u "${DGIDGATEWAY_USER}" >/dev/null 2>&1; then
 		einfo "Creating user ${DGIDGATEWAY_USER}"

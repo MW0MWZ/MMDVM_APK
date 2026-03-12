@@ -5,7 +5,7 @@ pkgname=mmdvmhost
 pkgver=2025.01.01
 pkgrel=0
 # Git commit will be captured during build
-_gitcommit="89b9fc2"
+_gitcommit="10680f5"
 pkgdesc="MMDVM Host Software and Calibration Tool for Digital Amateur Radio"
 url="https://github.com/g4klx/MMDVMHost"
 arch="x86_64 armhf aarch64"
@@ -14,155 +14,105 @@ makedepends="
 	build-base
 	git
 	linux-headers
-	i2c-tools-dev
+	libsamplerate-dev
+	mosquitto-dev
+	nlohmann-json
 	"
 depends="
 	libgcc
+	libsamplerate
 	libstdc++
-	i2c-tools
+	mosquitto-libs
 	"
+
+# Architecture-specific dependencies for Display-Driver (OLED, HD44780)
+case "$CARCH" in
+	armhf|aarch64)
+		makedepends="$makedepends wiringpi-dev i2c-tools-dev"
+		depends="$depends wiringpi i2c-tools"
+		;;
+esac
 subpackages="$pkgname-doc $pkgname-openrc"
+install="$pkgname.post-install"
 source=""
 options="!check"  # No test suite
 giturl="https://github.com/g4klx/MMDVMHost.git"
 giturl_cal="https://github.com/g4klx/MMDVMCal.git"
+giturl_displaydriver="https://github.com/g4klx/Display-Driver.git"
 giturl_oled="https://github.com/MW0MWZ/ArduiPi_OLED.git"
-
-# Architecture-specific dependencies
-case "$CARCH" in
-	armhf|aarch64)
-		# ARM platforms need additional hardware interface libraries
-		makedepends="$makedepends linux-rpi-dev wiringpi wiringpi-dev"
-		depends="$depends wiringpi"
-		;;
-	x86_64)
-		# x86_64 platform needs different kernel files
-		makedepends="$makedepends linux-lts-dev"
-		;;
-esac
 
 # We'll clone the git repo in prepare() instead of using source
 prepare() {
 	# Clean any existing source
 	rm -rf "$srcdir/MMDVMHost"
 	rm -rf "$srcdir/MMDVMCal"
+	rm -rf "$srcdir/Display-Driver"
 	rm -rf "$srcdir/ArduiPi_OLED"
-	
+	rm -rf "$srcdir/oled-install"
+
 	# Clone the MMDVMHost repository
 	msg "Cloning MMDVMHost from $giturl"
 	git clone "$giturl" "$srcdir/MMDVMHost"
 	cd "$srcdir/MMDVMHost"
-	
+
 	# Get the version info that will be embedded in the binary
 	local git_version=$(git describe --tags --always)
 	msg "MMDVMHost git version: $git_version"
-	
-	# Apply Alpine/ARM specific modifications to Makefile.Pi.OLED
-	case "$CARCH" in
-		armhf|aarch64)
-			msg "Applying Alpine ARM modifications to Makefile.Pi.OLED"
-			# Add HD44780 LCD support with PCF8574 I2C expander
-			sed -i 's/-DOLED/-DHD44780 -DPCF8574_DISPLAY -DOLED/g' Makefile.Pi.OLED
-			# Add HD44780.o to build objects
-			sed -i 's/Hamming.o/Hamming.o HD44780.o/g' Makefile.Pi.OLED
-			# Add wiringPi and i2c libraries for GPIO and I2C support
-			sed -i 's/-lArduiPi_OLED/-lwiringPi -lwiringPiDev -lArduiPi_OLED -li2c/g' Makefile.Pi.OLED
-			;;
-	esac
-	
+
 	# Clone the MMDVMCal repository
 	msg "Cloning MMDVMCal from $giturl_cal"
 	git clone "$giturl_cal" "$srcdir/MMDVMCal"
 	cd "$srcdir/MMDVMCal"
-	
+
 	local git_version_cal=$(git describe --tags --always)
 	msg "MMDVMCal git version: $git_version_cal"
-	
-	# For ARM platforms, clone ArduiPi_OLED
+
+	# Clone the Display-Driver repository (all architectures)
+	msg "Cloning Display-Driver from $giturl_displaydriver"
+	git clone "$giturl_displaydriver" "$srcdir/Display-Driver"
+	cd "$srcdir/Display-Driver"
+
+	local git_version_dd=$(git describe --tags --always)
+	msg "Display-Driver git version: $git_version_dd"
+
+	# Clone ArduiPi_OLED library (ARM only, needed for Display-Driver OLED support)
 	case "$CARCH" in
 		armhf|aarch64)
 			msg "Cloning ArduiPi_OLED from $giturl_oled"
 			git clone "$giturl_oled" "$srcdir/ArduiPi_OLED"
 			cd "$srcdir/ArduiPi_OLED"
-			
+
 			local git_version_oled=$(git describe --tags --always)
 			msg "ArduiPi_OLED git version: $git_version_oled"
 			;;
 	esac
-	
+
 	# Apply any patches if needed
 	cd "$srcdir"
 	default_prepare || true
 }
 
 build() {
-	# For ARM platforms, build ArduiPi_OLED first
-	case "$CARCH" in
-		armhf|aarch64)
-			msg "Building ArduiPi_OLED for ARM platform"
-			cd "$srcdir/ArduiPi_OLED"
-			
-			# IMPORTANT: Use -j1 as parallel build fails
-			# Set PREFIX to install in a local directory, not system-wide
-			# Ensure i2c library is linked
-			make clean
-			
-			# Build and install to local prefix with explicit i2c linking
-			make -j1 \
-				PREFIX="$srcdir/oled-install" \
-				CFLAGS="$CFLAGS" \
-				CXXFLAGS="$CXXFLAGS" \
-				LDFLAGS="$LDFLAGS -li2c"
-			
-			# Set paths for MMDVMHost to find the OLED library
-			export LIBRARY_PATH="$srcdir/oled-install/lib:$LIBRARY_PATH"
-			export CPATH="$srcdir/oled-install/include:$CPATH"
-			export LD_LIBRARY_PATH="$srcdir/oled-install/lib:$LD_LIBRARY_PATH"
-			;;
-	esac
-	
 	# Build MMDVMHost
 	cd "$srcdir/MMDVMHost"
-	
+
 	# Clean previous builds
 	make clean
-	
-	# Choose the appropriate Makefile based on architecture
-	case "$CARCH" in
-		armhf|aarch64)
-			# ARM platforms use the OLED-enabled Makefile with patches already applied
-			msg "Building MMDVMHost with OLED and HD44780 support for ARM"
-			
-			# Ensure library paths are set for OLED support
-			export LIBRARY_PATH="$srcdir/oled-install/lib:$LIBRARY_PATH"
-			export CPATH="$srcdir/oled-install/include:$CPATH"
-			export LD_LIBRARY_PATH="$srcdir/oled-install/lib:$LD_LIBRARY_PATH"
-			
-			# Build with the patched Makefile
-			make -f Makefile.Pi.OLED \
-				CFLAGS="$CFLAGS -I$srcdir/oled-install/include" \
-				CXXFLAGS="$CXXFLAGS -I$srcdir/oled-install/include" \
-				LDFLAGS="$LDFLAGS -L$srcdir/oled-install/lib" \
-				-j $(nproc) \
-				all
-			;;
-		x86_64)
-			# x86_64 uses the standard Makefile
-			msg "Building MMDVMHost for x86_64"
-			make \
-				CFLAGS="$CFLAGS" \
-				CXXFLAGS="$CXXFLAGS" \
-				LDFLAGS="$LDFLAGS" \
-				-j $(nproc) \
-				all
-			;;
-	esac
-	
+
+	# Build with standard Makefile for all architectures
+	msg "Building MMDVMHost"
+	make \
+		CFLAGS="$CFLAGS" \
+		CXXFLAGS="$CXXFLAGS" \
+		LDFLAGS="$LDFLAGS" \
+		-j $(nproc) \
+		all
+
 	# Build MMDVMCal
 	cd "$srcdir/MMDVMCal"
-	
+
 	make clean
-	
+
 	# Build with appropriate flags for Alpine
 	make \
 		CFLAGS="$CFLAGS" \
@@ -170,97 +120,142 @@ build() {
 		LDFLAGS="$LDFLAGS" \
 		-j $(nproc) \
 		all
+
+	# Build ArduiPi_OLED shared library (ARM only)
+	case "$CARCH" in
+		armhf|aarch64)
+			cd "$srcdir/ArduiPi_OLED"
+
+			msg "Building and installing ArduiPi_OLED library"
+			make clean
+			# The default 'all' target includes install, so a single make
+			# builds the library and installs it to PREFIX in one step
+			make \
+				CFLAGS="$CFLAGS" \
+				LDFLAGS="$LDFLAGS -li2c" \
+				PREFIX="$srcdir/oled-install" \
+				-j1
+
+			# Export paths so Display-Driver can find the library
+			export LIBRARY_PATH="$srcdir/oled-install/lib:$LIBRARY_PATH"
+			export CPATH="$srcdir/oled-install/include:$CPATH"
+			export LD_LIBRARY_PATH="$srcdir/oled-install/lib:$LD_LIBRARY_PATH"
+			;;
+	esac
+
+	# Build Display-Driver
+	cd "$srcdir/Display-Driver"
+
+	make clean
+
+	case "$CARCH" in
+		armhf|aarch64)
+			# ARM: Enable OLED, HD44780, and PCF8574 display support
+			msg "Building Display-Driver with OLED/HD44780 support"
+			make \
+				CFLAGS="$CFLAGS -DUSE_OLED -DUSE_HD44780 -DUSE_PCF8574_DISPLAY -I$srcdir/oled-install/include" \
+				LIBS="-lwiringPi -lwiringPiDev -lArduiPi_OLED -li2c -lpthread -lutil -lmosquitto -L$srcdir/oled-install/lib" \
+				LDFLAGS="$LDFLAGS -L$srcdir/oled-install/lib" \
+				-j $(nproc)
+			;;
+		*)
+			msg "Building Display-Driver"
+			make \
+				CFLAGS="$CFLAGS" \
+				LDFLAGS="$LDFLAGS" \
+				-j $(nproc)
+			;;
+	esac
 }
 
 package() {
-	# Install ArduiPi_OLED libraries and headers for ARM platforms
-	case "$CARCH" in
-		armhf|aarch64)
-			# Copy the OLED library files from our install prefix
-			if [ -d "$srcdir/oled-install" ]; then
-				cd "$srcdir/oled-install"
-				
-				# Install libraries - copy the actual .so file, not symlinks
-				if [ -d lib ]; then
-					mkdir -p "$pkgdir"/usr/lib
-					
-					# Find and copy the actual library file (not symlinks)
-					if [ -f lib/libArduiPi_OLED.so.1.0 ]; then
-						cp -a lib/libArduiPi_OLED.so.1.0 "$pkgdir"/usr/lib/
-					elif [ -f lib/libArduiPi_OLED.so ]; then
-						# Copy the actual file
-						cp -L lib/libArduiPi_OLED.so "$pkgdir"/usr/lib/libArduiPi_OLED.so.1.0
-					fi
-					
-					# Create proper relative symlinks
-					cd "$pkgdir"/usr/lib
-					if [ -f libArduiPi_OLED.so.1.0 ]; then
-						ln -sf libArduiPi_OLED.so.1.0 libArduiPi_OLED.so.1
-						ln -sf libArduiPi_OLED.so.1.0 libArduiPi_OLED.so
-					fi
-				fi
-				
-				cd "$srcdir/oled-install"
-				
-				# Install headers
-				if [ -d include ]; then
-					mkdir -p "$pkgdir"/usr/include
-					cp -a include/ArduiPi_*.h "$pkgdir"/usr/include/ 2>/dev/null || true
-					cp -a include/Adafruit_*.h "$pkgdir"/usr/include/ 2>/dev/null || true
-					cp -a include/bcm2835.h "$pkgdir"/usr/include/ 2>/dev/null || true
-				fi
-			fi
-			
-			# Install any OLED examples if present
-			cd "$srcdir/ArduiPi_OLED"
-			if [ -d examples ]; then
-				install -dm755 "$pkgdir"/usr/share/doc/$pkgname/oled-examples
-				cp -r examples/* "$pkgdir"/usr/share/doc/$pkgname/oled-examples/ 2>/dev/null || true
-			fi
-			;;
-	esac
-	
 	# Install MMDVMHost binaries
 	cd "$srcdir/MMDVMHost"
-	
+
 	# Install the main binary
 	install -Dm755 MMDVMHost "$pkgdir"/usr/bin/MMDVMHost
-	
+
 	# Install the RemoteCommand utility if it exists
 	if [ -f RemoteCommand ]; then
 		install -Dm755 RemoteCommand "$pkgdir"/usr/bin/MMDVMRemoteCommand
 	fi
-	
-	# Install configuration sample to /usr/share (note: file is MMDVM.ini but directory is mmdvmhost)
-	install -Dm644 MMDVM.ini "$pkgdir"/usr/share/mmdvmhost/MMDVM.ini.sample
-	
-	# Also install a copy to /etc for actual use (note: file is MMDVM.ini but directory is mmdvmhost)
-	install -Dm644 MMDVM.ini "$pkgdir"/etc/mmdvmhost/MMDVM.ini.example
-	
+
+	# Install configuration sample to /usr/share
+	install -Dm644 MMDVMHost.ini "$pkgdir"/usr/share/mmdvmhost/MMDVMHost.ini.sample
+
+	# Also install a copy to /etc for actual use
+	install -Dm644 MMDVMHost.ini "$pkgdir"/etc/mmdvmhost/MMDVMHost.ini.example
+
+	# Install RSSI data files from upstream
+	if [ -f RSSI.dat ]; then
+		install -Dm644 RSSI.dat "$pkgdir"/usr/share/mmdvmhost/RSSI.dat
+	fi
+	if [ -d RSSI ]; then
+		for rssi_file in RSSI/*.dat; do
+			[ -f "$rssi_file" ] && install -Dm644 "$rssi_file" \
+				"$pkgdir"/usr/share/mmdvmhost/"$(basename "$rssi_file")"
+		done
+	fi
+
+	# Install MMDVM_HS default RSSI data
+	install -Dm644 "$srcdir"/../RSSI_MMDVM_HS.dat "$pkgdir"/usr/share/mmdvmhost/RSSI_MMDVM_HS.dat
+	install -Dm644 "$srcdir"/../RSSI_MMDVM_HS.dat "$pkgdir"/etc/mmdvmhost/RSSI.dat
+
 	# Install MMDVMCal binary
 	cd "$srcdir/MMDVMCal"
 	install -Dm755 MMDVMCal "$pkgdir"/usr/bin/MMDVMCal
-	
-	# Install documentation from both projects
+
+	# Install Display-Driver binaries
+	cd "$srcdir/Display-Driver"
+	install -Dm755 DisplayDriver "$pkgdir"/usr/bin/DisplayDriver
+	if [ -f NextionUpdater ]; then
+		install -Dm755 NextionUpdater "$pkgdir"/usr/bin/NextionUpdater
+	fi
+
+	# Install Display-Driver configuration
+	install -Dm644 DisplayDriver.ini "$pkgdir"/usr/share/mmdvmhost/DisplayDriver.ini.sample
+	install -Dm644 DisplayDriver.ini "$pkgdir"/etc/mmdvmhost/DisplayDriver.ini.example
+
+	# Install ArduiPi_OLED shared library (ARM only)
+	case "$CARCH" in
+		armhf|aarch64)
+			# Install the actual shared library
+			install -Dm755 "$srcdir/oled-install/lib/libArduiPi_OLED.so.1.0" \
+				"$pkgdir"/usr/lib/libArduiPi_OLED.so.1.0
+			# Create proper relative symlinks
+			ln -sf libArduiPi_OLED.so.1.0 "$pkgdir"/usr/lib/libArduiPi_OLED.so.1
+			ln -sf libArduiPi_OLED.so.1.0 "$pkgdir"/usr/lib/libArduiPi_OLED.so
+			# Install headers
+			install -dm755 "$pkgdir"/usr/include
+			cp -f "$srcdir/oled-install/include"/*.h "$pkgdir"/usr/include/
+			;;
+	esac
+
+	# Install documentation from all projects
 	cd "$srcdir/MMDVMHost"
-	
+
 	# Install systemd service file if it exists (for reference)
 	if [ -f linux/systemd/mmdvmhost.service ]; then
 		install -Dm644 linux/systemd/mmdvmhost.service \
 			"$pkgdir"/usr/share/doc/$pkgname/mmdvmhost.service.example
 	fi
-	
+
 	# Install README files
 	if [ -f README.md ]; then
 		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README-MMDVMHost.md
 	fi
-	
+
 	cd "$srcdir/MMDVMCal"
 	if [ -f README.md ]; then
 		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README-MMDVMCal.md
 	fi
-	
-	# Look for license file - could be LICENSE, COPYING, or LICENSE.txt
+
+	cd "$srcdir/Display-Driver"
+	if [ -f README.md ]; then
+		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README-DisplayDriver.md
+	fi
+
+	# Look for license file
 	mkdir -p "$pkgdir"/usr/share/licenses/$pkgname
 	cd "$srcdir/MMDVMHost"
 	if [ -f LICENSE ]; then
@@ -273,13 +268,16 @@ package() {
 		# If no license file found, create a reference
 		echo "GPL-2.0-or-later - See upstream repository" > "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
 	fi
-	
-	# Create necessary directories (all using mmdvmhost, not mmdvm)
-	install -dm755 "$pkgdir"/var/log/mmdvmhost
-	
-	# Install OpenRC init script
+
+	# Create necessary directories with correct permissions
+	# Note: We set permissions here, not in post-install
+	install -dm755 -o root -g root "$pkgdir"/var/log/mmdvmhost
+
+	# Install OpenRC files (will be moved to subpackage automatically)
 	install -Dm755 "$srcdir"/../mmdvmhost.initd "$pkgdir"/etc/init.d/mmdvmhost
 	install -Dm644 "$srcdir"/../mmdvmhost.confd "$pkgdir"/etc/conf.d/mmdvmhost
+	install -Dm755 "$srcdir"/../displaydriver.initd "$pkgdir"/etc/init.d/displaydriver
+	install -Dm644 "$srcdir"/../displaydriver.confd "$pkgdir"/etc/conf.d/displaydriver
 }
 
 doc() {
@@ -287,6 +285,6 @@ doc() {
 }
 
 openrc() {
-    default_openrc
-    install_if=
+	default_openrc
+	install_if="openrc $pkgname=$pkgver-r$pkgrel"
 }

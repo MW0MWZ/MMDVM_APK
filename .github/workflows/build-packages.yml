@@ -164,9 +164,8 @@ jobs:
             MMDVM_CM_GITURL=$(grep "^mmdvm_cm_giturl=" "$PACKAGE_DIR/APKBUILD" | head -1 | cut -d'"' -f2)
             DMRGATEWAY_GITURL=$(grep "^dmrgateway_giturl=" "$PACKAGE_DIR/APKBUILD" | head -1 | cut -d'"' -f2)
             NXDNCLIENTS_GITURL=$(grep "^nxdnclients_giturl=" "$PACKAGE_DIR/APKBUILD" | head -1 | cut -d'"' -f2)
-            IRCDDBGATEWAY_GITURL=$(grep "^ircddbgateway_giturl=" "$PACKAGE_DIR/APKBUILD" | head -1 | cut -d'"' -f2)
             DSTARGATEWAY_GITURL=$(grep "^dstargateway_giturl=" "$PACKAGE_DIR/APKBUILD" | head -1 | cut -d'"' -f2)
-            
+
             # Determine which URL to use for version detection
             if [ -n "$GITURL" ]; then
               echo "Primary git URL: $GITURL"
@@ -177,9 +176,6 @@ jobs:
             elif [ -n "$NXDNCLIENTS_GITURL" ]; then
               echo "Using NXDNClients URL for version: $NXDNCLIENTS_GITURL"
               VERSION_URL="$NXDNCLIENTS_GITURL"
-            elif [ -n "$IRCDDBGATEWAY_GITURL" ]; then
-              echo "Using ircDDBGateway URL for version: $IRCDDBGATEWAY_GITURL"
-              VERSION_URL="$IRCDDBGATEWAY_GITURL"
             else
               echo "No git URL found in APKBUILD, using date-based version"
               VERSION_URL=""
@@ -278,6 +274,11 @@ jobs:
               "alpine:${ALPINE_VERSION}" \
               sh -c '
                 set -e
+                # Add RasPINE repo first so its packages (e.g. wiringpi 3.x) take priority over Alpine community
+                if [ "'${ARCH}'" != "x86_64" ]; then
+                  wget -q -O /etc/apk/keys/raspine.rsa.pub https://raspine.pistar.uk/raspine.rsa.pub
+                  echo "https://raspine.pistar.uk/v'${ALPINE_VERSION}'/community" >> /etc/apk/repositories
+                fi
                 echo "https://dl-cdn.alpinelinux.org/alpine/v'${ALPINE_VERSION}'/community" >> /etc/apk/repositories
                 apk update
                 apk add --no-cache alpine-sdk sudo git file

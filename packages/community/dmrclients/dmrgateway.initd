@@ -15,7 +15,7 @@ command_args="${DMRGATEWAY_CONFIG}"
 command_user="${DMRGATEWAY_USER}:${DMRGATEWAY_GROUP}"
 command_background=true
 pidfile="/run/${RC_SVCNAME}.pid"
-start_stop_daemon_args="--stdout ${DMRGATEWAY_LOGFILE} --stderr ${DMRGATEWAY_LOGFILE}"
+start_stop_daemon_args=""
 
 depend() {
 	need net
@@ -33,9 +33,6 @@ start_pre() {
 	
 	# Create log directory if it doesn't exist
 	checkpath -d -o "${DMRGATEWAY_USER}:${DMRGATEWAY_GROUP}" -m 0755 /var/log/dmrclients
-	
-	# Create log file if it doesn't exist
-	checkpath -f -o "${DMRGATEWAY_USER}:${DMRGATEWAY_GROUP}" -m 0644 "${DMRGATEWAY_LOGFILE}"
 	
 	# Create user if it doesn't exist
 	if ! id -u "${DMRGATEWAY_USER}" >/dev/null 2>&1; then

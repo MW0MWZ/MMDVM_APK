@@ -32,7 +32,7 @@ The repository currently builds the following packages:
 | Package | Description | Components | Dependencies |
 |---------|-------------|------------|--------------|
 | **dmrclients** | DMR Gateway and Cross-Mode | DMRGateway, DMR2YSF, DMR2NXDN | `build-base`, `git` |
-| **dstarclients** | D-Star Gateways and tools | ircDDBGateway, DStarGateway, remotecontrold, starnetserverd, and more | `wxwidgets-dev`, `linux-headers`, `curl-dev`, `boost-dev` |
+| **dstarclients** | D-Star Gateway and tools | DStarGateway, dgwremotecontrol, dgwtexttransmit, dgwtimeserver, dgwvoicetransmit | `linux-headers`, `boost-dev`, `curl-dev`, `mosquitto-dev`, `nlohmann-json` |
 | **ysfclients** | YSF Gateway, Parrot and Cross-Mode | YSFGateway, YSFParrot, DGIdGateway, YSF2DMR, YSF2NXDN, YSF2P25 | `build-base`, `git` |
 | **nxdnclients** | NXDN Gateway, Parrot and Cross-Mode | NXDNGateway, NXDNParrot, NXDN2DMR | `build-base`, `git` |
 | **p25clients** | P25 Gateway and Parrot | P25Gateway, P25Parrot | `build-base`, `git` |
@@ -68,10 +68,6 @@ Several packages build from multiple upstream repositories:
   - DMRGateway from `g4klx/DMRGateway`
   - DMR2YSF, DMR2NXDN from `nostar/MMDVM_CM`
 
-- **dstarclients**:
-  - ircDDBGateway and tools from `g4klx/ircDDBGateway`
-  - DStarGateway and tools from `F4FXL/DStarGateway`
-
 - **ysfclients**:
   - YSFGateway, YSFParrot, DGIdGateway from `g4klx/YSFClients`
   - YSF2DMR, YSF2NXDN, YSF2P25 from `nostar/MMDVM_CM`
@@ -105,8 +101,7 @@ Monitored repositories:
 - https://github.com/g4klx/MMDVMCal
 - https://github.com/g4klx/DStarRepeater
 - https://github.com/g4klx/DMRGateway
-- https://github.com/g4klx/ircDDBGateway
-- https://github.com/F4FXL/DStarGateway
+- https://github.com/g4klx/DStarGateway
 - https://github.com/g4klx/YSFClients
 - https://github.com/g4klx/NXDNClients
 - https://github.com/g4klx/P25Clients
@@ -324,14 +319,12 @@ sed -i '/^export CFLAGS.*=/a export CXXFLAGS := $(CFLAGS)' Makefile
 
 ### dstarclients
 ```bash
-# Requires wxWidgets and multiple components
-# Builds from two repositories:
-git clone g4klx/ircDDBGateway
-git clone F4FXL/DStarGateway
+# Builds from DStarGateway repository:
+git clone g4klx/DStarGateway
 
-# Build with wxWidgets support
-export WX_CONFIG="/usr/bin/wx-config"
-make CXXFLAGS="$(wx-config --cppflags) -DDATA_DIR=..."
+# Build with directory defines and mosquitto support
+make CFLAGS="-DCFG_DIR=... -DLOG_DIR=... -DDATA_DIR=..." \
+     LIBS="-lcurl -lpthread -lmosquitto"
 ```
 
 ### Cross-Mode Packages (dmrclients, ysfclients, nxdnclients)
@@ -376,9 +369,7 @@ Each package provides:
 - `dmr2nxdn` - DMR to NXDN converter
 
 **dstarclients**:
-- `ircddbgateway` - IRC DDB Gateway
 - `dstargateway` - D-Star Gateway
-- `starnetserver` - STARnet server
 
 **ysfclients**:
 - `ysfgateway` - YSF Gateway and Parrot
@@ -396,7 +387,6 @@ Each package provides:
 # Start individual components
 rc-service dstarrepeater start
 rc-service dmrgateway start
-rc-service ircddbgateway start
 rc-service ysfgateway start
 rc-service dgidgateway start
 rc-service ysf2dmr start
@@ -404,7 +394,7 @@ rc-service ysf2dmr start
 # Enable at boot
 rc-update add dstarrepeater default
 rc-update add dmrgateway default
-rc-update add ircddbgateway default
+rc-update add dstargateway default
 ```
 
 ## Directory Structure Convention
@@ -438,7 +428,7 @@ Common issues and solutions:
 - Ensure community repository is enabled
 - Check APKBUILD makedepends
 
-**wxWidgets issues (dstarrepeater, dstarclients)**:
+**wxWidgets issues (dstarrepeater)**:
 - Verify wx-config is available
 - Check wxwidgets-dev package is installed
 - Ensure CXXFLAGS includes wx-config output

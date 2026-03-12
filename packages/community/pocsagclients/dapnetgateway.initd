@@ -15,7 +15,7 @@ command_args="${DAPNETGATEWAY_CONFIG}"
 command_user="${DAPNETGATEWAY_USER}:${DAPNETGATEWAY_GROUP}"
 command_background=true
 pidfile="/run/${RC_SVCNAME}.pid"
-start_stop_daemon_args="--stdout ${DAPNETGATEWAY_LOGFILE} --stderr ${DAPNETGATEWAY_LOGFILE}"
+start_stop_daemon_args=""
 
 depend() {
 	need net
@@ -33,10 +33,7 @@ start_pre() {
 	
 	# Create log directory if it doesn't exist
 	checkpath -d -o "${DAPNETGATEWAY_USER}:${DAPNETGATEWAY_GROUP}" -m 0755 /var/log/pocsagclients
-	
-	# Create log file if it doesn't exist
-	checkpath -f -o "${DAPNETGATEWAY_USER}:${DAPNETGATEWAY_GROUP}" -m 0644 "${DAPNETGATEWAY_LOGFILE}"
-	
+
 	# Create user if it doesn't exist
 	if ! id -u "${DAPNETGATEWAY_USER}" >/dev/null 2>&1; then
 		einfo "Creating user ${DAPNETGATEWAY_USER}"

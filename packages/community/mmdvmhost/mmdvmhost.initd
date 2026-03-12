@@ -12,10 +12,7 @@ description="MMDVM Host Software for Digital Amateur Radio"
 
 command="/usr/bin/MMDVMHost"
 command_args="${MMDVMHOST_CONFIG}"
-command_user="${MMDVMHOST_USER}:${MMDVMHOST_GROUP}"
-command_background=true
 pidfile="/run/${RC_SVCNAME}.pid"
-start_stop_daemon_args="--stdout ${MMDVMHOST_LOGFILE} --stderr ${MMDVMHOST_LOGFILE}"
 
 depend() {
 	need net
@@ -30,30 +27,150 @@ start_pre() {
 		eerror "Please create it from the example: cp /etc/mmdvmhost/MMDVM.ini.example ${MMDVMHOST_CONFIG}"
 		return 1
 	fi
+
+	# Create group if it doesn't exist
+	if ! getent group "${MMDVMHOST_GROUP}" >/dev/null 2>&1; then
+		einfo "Creating group ${MMDVMHOST_GROUP}"
+		addgroup "${MMDVMHOST_GROUP}" 2>/dev/null
+	fi
+
+	# Create user if it doesn't exist
+	if ! id -u "${MMDVMHOST_USER}" >/dev/null 2>&1; then
+		einfo "Creating user ${MMDVMHOST_USER}"
+		adduser -D -H -s /sbin/nologin -G "${MMDVMHOST_GROUP}" "${MMDVMHOST_USER}" 2>/dev/null
+	fi
+	
+	# Architecture-specific group membership
+	case "$(uname -m)" in
+		arm*|aarch64)
+			# ARM platforms need hardware access groups
+			addgroup "${MMDVMHOST_USER}" dialout 2>/dev/null || true  # Serial port access
+			addgroup "${MMDVMHOST_USER}" kmem 2>/dev/null || true     # GPIO via /dev/mem
+			addgroup "${MMDVMHOST_USER}" i2c 2>/dev/null || true      # I2C display access
+			;;
+		x86_64)
+			# x86_64 only needs serial access
+			addgroup "${MMDVMHOST_USER}" dialout 2>/dev/null || true
+			;;
+	esac
 	
 	# Create log directory if it doesn't exist
 	checkpath -d -o "${MMDVMHOST_USER}:${MMDVMHOST_GROUP}" -m 0755 /var/log/mmdvmhost
 	
-	# Create log file if it doesn't exist
+	# Create the log file if it doesn't exist
 	checkpath -f -o "${MMDVMHOST_USER}:${MMDVMHOST_GROUP}" -m 0644 "${MMDVMHOST_LOGFILE}"
 	
-	# Check for required devices on ARM platforms
+	# Architecture-specific device checks
 	case "$(uname -m)" in
 		arm*|aarch64)
+			# Check for serial devices (modem connection)
 			if [ ! -e "/dev/ttyAMA0" ] && [ ! -e "/dev/ttyUSB0" ] && [ ! -e "/dev/ttyACM0" ]; then
 				ewarn "No serial device found - MMDVMHost may fail to start"
+				ewarn "Check your modem connection"
+			fi
+			
+			# Check for I2C (for displays)
+			if [ ! -e "/dev/i2c-1" ] && [ ! -e "/dev/i2c-0" ]; then
+				ewarn "No I2C device found - Display support may not be available"
+			fi
+			
+			# Check GPIO access
+			if [ ! -r "/dev/mem" ]; then
+				ewarn "/dev/mem not readable - GPIO access may fail"
+				ewarn "Ensure ${MMDVMHOST_USER} is in kmem group and /dev/mem has 0660 permissions"
+			fi
+			
+			# Check if capabilities are set
+			if command -v getcap >/dev/null 2>&1; then
+				if ! getcap /usr/bin/MMDVMHost | grep -q cap_sys_rawio; then
+					ewarn "Capabilities not set on /usr/bin/MMDVMHost"
+					ewarn "Run: setcap 'cap_sys_rawio,cap_dac_override+ep' /usr/bin/MMDVMHost"
+				fi
+			fi
+			;;
+		x86_64)
+			# Check for serial devices only
+			if [ ! -e "/dev/ttyUSB0" ] && [ ! -e "/dev/ttyACM0" ]; then
+				ewarn "No USB serial device found - check your modem connection"
 			fi
 			;;
 	esac
+	
+	return 0
 }
 
-stop_post() {
-	# Give the process a moment to clean up
-	sleep 1
+start() {
+	ebegin "Starting ${name}"
+	
+	start-stop-daemon --start \
+		--background \
+		--make-pidfile \
+		--pidfile "${pidfile}" \
+		--chuid "${MMDVMHOST_USER}:${MMDVMHOST_GROUP}" \
+		--exec ${command} \
+		-- ${command_args} \
+		>>"${MMDVMHOST_LOGFILE}" 2>&1
+	
+	eend $?
+}
+
+stop() {
+	ebegin "Stopping ${name}"
+	
+	# First try to stop by pidfile
+	if [ -f "${pidfile}" ]; then
+		local pid=$(cat "${pidfile}")
+		if kill -0 "${pid}" 2>/dev/null; then
+			kill -TERM "${pid}"
+			local i=0
+			while [ $i -lt 10 ] && kill -0 "${pid}" 2>/dev/null; do
+				sleep 1
+				i=$((i + 1))
+			done
+			if kill -0 "${pid}" 2>/dev/null; then
+				kill -KILL "${pid}"
+				sleep 1
+			fi
+		fi
+		rm -f "${pidfile}"
+	fi
+	
+	# Also try to stop by process name as fallback
+	pkill -f "^/usr/bin/MMDVMHost ${MMDVMHOST_CONFIG}" 2>/dev/null || true
+	
+	eend 0
+}
+
+status() {
+	if [ -f "${pidfile}" ]; then
+		local pid=$(cat "${pidfile}")
+		if kill -0 "${pid}" 2>/dev/null; then
+			einfo "${name} is running (pid ${pid})"
+			return 0
+		else
+			eerror "${name} is not running (stale pidfile)"
+			return 1
+		fi
+	else
+		# Check if process is running without pidfile
+		if pgrep -f "^/usr/bin/MMDVMHost" >/dev/null 2>&1; then
+			ewarn "${name} is running but no pidfile found"
+			return 0
+		else
+			eerror "${name} is not running"
+			return 3
+		fi
+	fi
 }
 
 reload() {
 	ebegin "Reloading ${name} configuration"
-	start-stop-daemon --signal HUP --pidfile "${pidfile}"
-	eend $?
+	
+	if [ -f "${pidfile}" ]; then
+		kill -HUP $(cat "${pidfile}") 2>/dev/null
+		eend $?
+	else
+		eerror "${name} is not running"
+		eend 1
+	fi
 }

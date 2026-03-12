@@ -1,0 +1,115 @@
+#!/sbin/openrc-run
+# OpenRC init script for DisplayDriver
+
+name="DisplayDriver"
+description="MMDVM Display Driver for OLED, HD44780, Nextion and LCDproc displays"
+
+# Configuration
+: ${DISPLAYDRIVER_CONFIG:="/etc/mmdvmhost/DisplayDriver.ini"}
+: ${DISPLAYDRIVER_USER:="mmdvm"}
+: ${DISPLAYDRIVER_GROUP:="mmdvm"}
+: ${DISPLAYDRIVER_LOGFILE:="/var/log/mmdvmhost/displaydriver.log"}
+
+command="/usr/bin/DisplayDriver"
+command_args="${DISPLAYDRIVER_CONFIG}"
+pidfile="/run/${RC_SVCNAME}.pid"
+
+depend() {
+	need net
+	after mmdvmhost
+	use logger
+}
+
+start_pre() {
+	# Check if configuration exists
+	if [ ! -f "${DISPLAYDRIVER_CONFIG}" ]; then
+		eerror "Configuration file ${DISPLAYDRIVER_CONFIG} does not exist"
+		eerror "Please create it from the example: cp /etc/mmdvmhost/DisplayDriver.ini.example ${DISPLAYDRIVER_CONFIG}"
+		return 1
+	fi
+
+	# Create log file if it doesn't exist
+	checkpath -f -o "${DISPLAYDRIVER_USER}:${DISPLAYDRIVER_GROUP}" -m 0644 "${DISPLAYDRIVER_LOGFILE}"
+
+	# Architecture-specific device checks
+	case "$(uname -m)" in
+		arm*|aarch64)
+			# Check for I2C (for OLED/HD44780 displays)
+			if [ ! -e "/dev/i2c-1" ] && [ ! -e "/dev/i2c-0" ]; then
+				ewarn "No I2C device found - Display support may not be available"
+			fi
+
+			# Check GPIO access (for HD44780)
+			if [ ! -r "/dev/mem" ]; then
+				ewarn "/dev/mem not readable - GPIO access may fail"
+				ewarn "Ensure ${DISPLAYDRIVER_USER} is in kmem group and /dev/mem has 0660 permissions"
+			fi
+			;;
+	esac
+
+	return 0
+}
+
+start() {
+	ebegin "Starting ${name}"
+
+	start-stop-daemon --start \
+		--background \
+		--make-pidfile \
+		--pidfile "${pidfile}" \
+		--chuid "${DISPLAYDRIVER_USER}:${DISPLAYDRIVER_GROUP}" \
+		--exec ${command} \
+		-- ${command_args} \
+		>>"${DISPLAYDRIVER_LOGFILE}" 2>&1
+
+	eend $?
+}
+
+stop() {
+	ebegin "Stopping ${name}"
+
+	# First try to stop by pidfile
+	if [ -f "${pidfile}" ]; then
+		local pid=$(cat "${pidfile}")
+		if kill -0 "${pid}" 2>/dev/null; then
+			kill -TERM "${pid}"
+			local i=0
+			while [ $i -lt 10 ] && kill -0 "${pid}" 2>/dev/null; do
+				sleep 1
+				i=$((i + 1))
+			done
+			if kill -0 "${pid}" 2>/dev/null; then
+				kill -KILL "${pid}"
+				sleep 1
+			fi
+		fi
+		rm -f "${pidfile}"
+	fi
+
+	# Also try to stop by process name as fallback
+	pkill -f "^/usr/bin/DisplayDriver ${DISPLAYDRIVER_CONFIG}" 2>/dev/null || true
+
+	eend 0
+}
+
+status() {
+	if [ -f "${pidfile}" ]; then
+		local pid=$(cat "${pidfile}")
+		if kill -0 "${pid}" 2>/dev/null; then
+			einfo "${name} is running (pid ${pid})"
+			return 0
+		else
+			eerror "${name} is not running (stale pidfile)"
+			return 1
+		fi
+	else
+		# Check if process is running without pidfile
+		if pgrep -f "^/usr/bin/DisplayDriver" >/dev/null 2>&1; then
+			ewarn "${name} is running but no pidfile found"
+			return 0
+		else
+			eerror "${name} is not running"
+			return 3
+		fi
+	fi
+}
