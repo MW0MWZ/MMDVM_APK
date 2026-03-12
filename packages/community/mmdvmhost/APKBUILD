@@ -198,8 +198,8 @@ package() {
 	fi
 
 	# Install MMDVM_HS default RSSI data
-	install -Dm644 "$srcdir"/../RSSI_MMDVM_HS.dat "$pkgdir"/usr/share/mmdvmhost/RSSI_MMDVM_HS.dat
-	install -Dm644 "$srcdir"/../RSSI_MMDVM_HS.dat "$pkgdir"/etc/mmdvmhost/RSSI.dat
+	install -Dm644 "$startdir"/RSSI_MMDVM_HS.dat "$pkgdir"/usr/share/mmdvmhost/RSSI_MMDVM_HS.dat
+	install -Dm644 "$startdir"/RSSI_MMDVM_HS.dat "$pkgdir"/etc/mmdvmhost/RSSI.dat
 
 	# Install MMDVMCal binary
 	cd "$srcdir/MMDVMCal"
@@ -274,10 +274,10 @@ package() {
 	install -dm755 -o root -g root "$pkgdir"/var/log/mmdvmhost
 
 	# Install OpenRC files (will be moved to subpackage automatically)
-	install -Dm755 "$srcdir"/../mmdvmhost.initd "$pkgdir"/etc/init.d/mmdvmhost
-	install -Dm644 "$srcdir"/../mmdvmhost.confd "$pkgdir"/etc/conf.d/mmdvmhost
-	install -Dm755 "$srcdir"/../displaydriver.initd "$pkgdir"/etc/init.d/displaydriver
-	install -Dm644 "$srcdir"/../displaydriver.confd "$pkgdir"/etc/conf.d/displaydriver
+	install -Dm755 "$startdir"/mmdvmhost.initd "$pkgdir"/etc/init.d/mmdvmhost
+	install -Dm644 "$startdir"/mmdvmhost.confd "$pkgdir"/etc/conf.d/mmdvmhost
+	install -Dm755 "$startdir"/displaydriver.initd "$pkgdir"/etc/init.d/displaydriver
+	install -Dm644 "$startdir"/displaydriver.confd "$pkgdir"/etc/conf.d/displaydriver
 }
 
 doc() {

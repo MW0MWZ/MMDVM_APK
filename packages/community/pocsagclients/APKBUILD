@@ -108,8 +108,8 @@ package() {
 	install -dm755 "$pkgdir"/usr/share/pocsagclients
 	
 	# Install OpenRC init script
-	install -Dm755 "$srcdir"/../dapnetgateway.initd "$pkgdir"/etc/init.d/dapnetgateway
-	install -Dm644 "$srcdir"/../dapnetgateway.confd "$pkgdir"/etc/conf.d/dapnetgateway
+	install -Dm755 "$startdir"/dapnetgateway.initd "$pkgdir"/etc/init.d/dapnetgateway
+	install -Dm644 "$startdir"/dapnetgateway.confd "$pkgdir"/etc/conf.d/dapnetgateway
 }
 
 doc() {

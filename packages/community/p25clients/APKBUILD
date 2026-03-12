@@ -175,8 +175,8 @@ package() {
 	install -dm755 "$pkgdir"/usr/share/p25clients
 	
 	# Install OpenRC init script - single service for both binaries
-	install -Dm755 "$srcdir"/../p25gateway.initd "$pkgdir"/etc/init.d/p25gateway
-	install -Dm644 "$srcdir"/../p25gateway.confd "$pkgdir"/etc/conf.d/p25gateway
+	install -Dm755 "$startdir"/p25gateway.initd "$pkgdir"/etc/init.d/p25gateway
+	install -Dm644 "$startdir"/p25gateway.confd "$pkgdir"/etc/conf.d/p25gateway
 }
 
 doc() {

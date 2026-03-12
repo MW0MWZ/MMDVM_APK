@@ -253,12 +253,12 @@ package() {
 	install -dm755 "$pkgdir"/usr/share/dmrclients
 	
 	# Install OpenRC init scripts
-	install -Dm755 "$srcdir"/../dmrgateway.initd "$pkgdir"/etc/init.d/dmrgateway
-	install -Dm644 "$srcdir"/../dmrgateway.confd "$pkgdir"/etc/conf.d/dmrgateway
-	install -Dm755 "$srcdir"/../dmr2ysf.initd "$pkgdir"/etc/init.d/dmr2ysf
-	install -Dm644 "$srcdir"/../dmr2ysf.confd "$pkgdir"/etc/conf.d/dmr2ysf
-	install -Dm755 "$srcdir"/../dmr2nxdn.initd "$pkgdir"/etc/init.d/dmr2nxdn
-	install -Dm644 "$srcdir"/../dmr2nxdn.confd "$pkgdir"/etc/conf.d/dmr2nxdn
+	install -Dm755 "$startdir"/dmrgateway.initd "$pkgdir"/etc/init.d/dmrgateway
+	install -Dm644 "$startdir"/dmrgateway.confd "$pkgdir"/etc/conf.d/dmrgateway
+	install -Dm755 "$startdir"/dmr2ysf.initd "$pkgdir"/etc/init.d/dmr2ysf
+	install -Dm644 "$startdir"/dmr2ysf.confd "$pkgdir"/etc/conf.d/dmr2ysf
+	install -Dm755 "$startdir"/dmr2nxdn.initd "$pkgdir"/etc/init.d/dmr2nxdn
+	install -Dm644 "$startdir"/dmr2nxdn.confd "$pkgdir"/etc/conf.d/dmr2nxdn
 }
 
 doc() {

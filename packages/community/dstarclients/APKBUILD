@@ -146,8 +146,8 @@ package() {
 	install -dm755 "$pkgdir/var/log/dstarclients"
 
 	# Install OpenRC files
-	install -Dm755 "$srcdir/../dstargateway.initd" "$pkgdir/etc/init.d/dstargateway"
-	install -Dm644 "$srcdir/../dstargateway.confd" "$pkgdir/etc/conf.d/dstargateway"
+	install -Dm755 "$startdir/dstargateway.initd" "$pkgdir/etc/init.d/dstargateway"
+	install -Dm644 "$startdir/dstargateway.confd" "$pkgdir/etc/conf.d/dstargateway"
 }
 
 doc() {

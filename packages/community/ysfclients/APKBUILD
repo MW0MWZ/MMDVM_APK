@@ -385,16 +385,16 @@ package() {
 	install -dm755 "$pkgdir"/usr/share/ysfclients
 	
 	# Install OpenRC init scripts
-	install -Dm755 "$srcdir"/../ysfgateway.initd "$pkgdir"/etc/init.d/ysfgateway
-	install -Dm644 "$srcdir"/../ysfgateway.confd "$pkgdir"/etc/conf.d/ysfgateway
-	install -Dm755 "$srcdir"/../dgidgateway.initd "$pkgdir"/etc/init.d/dgidgateway
-	install -Dm644 "$srcdir"/../dgidgateway.confd "$pkgdir"/etc/conf.d/dgidgateway
-	install -Dm755 "$srcdir"/../ysf2dmr.initd "$pkgdir"/etc/init.d/ysf2dmr
-	install -Dm644 "$srcdir"/../ysf2dmr.confd "$pkgdir"/etc/conf.d/ysf2dmr
-	install -Dm755 "$srcdir"/../ysf2nxdn.initd "$pkgdir"/etc/init.d/ysf2nxdn
-	install -Dm644 "$srcdir"/../ysf2nxdn.confd "$pkgdir"/etc/conf.d/ysf2nxdn
-	install -Dm755 "$srcdir"/../ysf2p25.initd "$pkgdir"/etc/init.d/ysf2p25
-	install -Dm644 "$srcdir"/../ysf2p25.confd "$pkgdir"/etc/conf.d/ysf2p25
+	install -Dm755 "$startdir"/ysfgateway.initd "$pkgdir"/etc/init.d/ysfgateway
+	install -Dm644 "$startdir"/ysfgateway.confd "$pkgdir"/etc/conf.d/ysfgateway
+	install -Dm755 "$startdir"/dgidgateway.initd "$pkgdir"/etc/init.d/dgidgateway
+	install -Dm644 "$startdir"/dgidgateway.confd "$pkgdir"/etc/conf.d/dgidgateway
+	install -Dm755 "$startdir"/ysf2dmr.initd "$pkgdir"/etc/init.d/ysf2dmr
+	install -Dm644 "$startdir"/ysf2dmr.confd "$pkgdir"/etc/conf.d/ysf2dmr
+	install -Dm755 "$startdir"/ysf2nxdn.initd "$pkgdir"/etc/init.d/ysf2nxdn
+	install -Dm644 "$startdir"/ysf2nxdn.confd "$pkgdir"/etc/conf.d/ysf2nxdn
+	install -Dm755 "$startdir"/ysf2p25.initd "$pkgdir"/etc/init.d/ysf2p25
+	install -Dm644 "$startdir"/ysf2p25.confd "$pkgdir"/etc/conf.d/ysf2p25
 }
 
 doc() {

@@ -110,8 +110,8 @@ package() {
 	install -dm755 "$pkgdir"/usr/share/fmclients
 	
 	# Install OpenRC init script
-	install -Dm755 "$srcdir"/../fmgateway.initd "$pkgdir"/etc/init.d/fmgateway
-	install -Dm644 "$srcdir"/../fmgateway.confd "$pkgdir"/etc/conf.d/fmgateway
+	install -Dm755 "$startdir"/fmgateway.initd "$pkgdir"/etc/init.d/fmgateway
+	install -Dm644 "$startdir"/fmgateway.confd "$pkgdir"/etc/conf.d/fmgateway
 }
 
 doc() {

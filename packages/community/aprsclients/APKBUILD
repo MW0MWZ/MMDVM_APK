@@ -114,8 +114,8 @@ package() {
 	install -dm755 "$pkgdir"/usr/share/aprsclients
 	
 	# Install OpenRC init script
-	install -Dm755 "$srcdir"/../aprsgateway.initd "$pkgdir"/etc/init.d/aprsgateway
-	install -Dm644 "$srcdir"/../aprsgateway.confd "$pkgdir"/etc/conf.d/aprsgateway
+	install -Dm755 "$startdir"/aprsgateway.initd "$pkgdir"/etc/init.d/aprsgateway
+	install -Dm644 "$startdir"/aprsgateway.confd "$pkgdir"/etc/conf.d/aprsgateway
 }
 
 doc() {

@@ -266,12 +266,12 @@ package() {
 	install -dm755 "$pkgdir"/usr/share/nxdnclients
 	
 	# Install OpenRC init scripts
-	install -Dm755 "$srcdir"/../nxdngateway.initd "$pkgdir"/etc/init.d/nxdngateway
-	install -Dm644 "$srcdir"/../nxdngateway.confd "$pkgdir"/etc/conf.d/nxdngateway
-	install -Dm755 "$srcdir"/../nxdnparrot.initd "$pkgdir"/etc/init.d/nxdnparrot
-	install -Dm644 "$srcdir"/../nxdnparrot.confd "$pkgdir"/etc/conf.d/nxdnparrot
-	install -Dm755 "$srcdir"/../nxdn2dmr.initd "$pkgdir"/etc/init.d/nxdn2dmr
-	install -Dm644 "$srcdir"/../nxdn2dmr.confd "$pkgdir"/etc/conf.d/nxdn2dmr
+	install -Dm755 "$startdir"/nxdngateway.initd "$pkgdir"/etc/init.d/nxdngateway
+	install -Dm644 "$startdir"/nxdngateway.confd "$pkgdir"/etc/conf.d/nxdngateway
+	install -Dm755 "$startdir"/nxdnparrot.initd "$pkgdir"/etc/init.d/nxdnparrot
+	install -Dm644 "$startdir"/nxdnparrot.confd "$pkgdir"/etc/conf.d/nxdnparrot
+	install -Dm755 "$startdir"/nxdn2dmr.initd "$pkgdir"/etc/init.d/nxdn2dmr
+	install -Dm644 "$startdir"/nxdn2dmr.confd "$pkgdir"/etc/conf.d/nxdn2dmr
 }
 
 doc() {
