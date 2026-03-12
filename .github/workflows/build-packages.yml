@@ -245,7 +245,7 @@ jobs:
             sed -i "s/^_gitcommit=.*/_gitcommit=\"${GIT_COMMIT}\"/" "$TEMP_DIR/APKBUILD"
             
             # Copy ALL supporting files
-            for file in "$PACKAGE_DIR"/*.initd "$PACKAGE_DIR"/*.confd "$PACKAGE_DIR"/*.pre-install "$PACKAGE_DIR"/*.post-install "$PACKAGE_DIR"/*.pre-upgrade "$PACKAGE_DIR"/*.post-upgrade "$PACKAGE_DIR"/*.pre-deinstall "$PACKAGE_DIR"/*.post-deinstall; do
+            for file in "$PACKAGE_DIR"/*.initd "$PACKAGE_DIR"/*.confd "$PACKAGE_DIR"/*.pre-install "$PACKAGE_DIR"/*.post-install "$PACKAGE_DIR"/*.pre-upgrade "$PACKAGE_DIR"/*.post-upgrade "$PACKAGE_DIR"/*.pre-deinstall "$PACKAGE_DIR"/*.post-deinstall "$PACKAGE_DIR"/*.dat; do
               if [ -f "$file" ]; then
                 echo "Copying supporting file: $(basename "$file")"
                 cp "$file" "$TEMP_DIR/"
