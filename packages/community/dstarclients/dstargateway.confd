@@ -1,7 +1,7 @@
 # Configuration for DStarGateway service
 
 # Configuration file location
-# DSTARGATEWAY_CONFIG="/etc/dstarclients/dstargateway.cfg"
+# DSTARGATEWAY_CONFIG="/etc/dstarclients/DStarGateway.ini"
 
 # User and group to run as
 # Note: User should be in 'dialout' group for modem access

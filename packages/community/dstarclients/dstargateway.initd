@@ -5,13 +5,13 @@ name="DStarGateway"
 description="D-Star Gateway for digital voice communications"
 
 # Configuration
-: ${DSTARGATEWAY_CONFIG:="/etc/dstarclients/dstargateway.cfg"}
-: ${DSTARGATEWAY_USER:="dstar"}
-: ${DSTARGATEWAY_GROUP:="dstar"}
+: ${DSTARGATEWAY_CONFIG:="/etc/dstarclients/DStarGateway.ini"}
+: ${DSTARGATEWAY_USER:="mmdvm"}
+: ${DSTARGATEWAY_GROUP:="mmdvm"}
 : ${DSTARGATEWAY_LOGFILE:="/var/log/dstarclients/dstargateway.log"}
 
 command="/usr/bin/dstargateway"
-command_args="-config ${DSTARGATEWAY_CONFIG}"
+command_args="${DSTARGATEWAY_CONFIG}"
 command_user="${DSTARGATEWAY_USER}:${DSTARGATEWAY_GROUP}"
 command_background=true
 pidfile="/run/${RC_SVCNAME}.pid"
@@ -29,7 +29,7 @@ start_pre() {
 	# Check if configuration exists
 	if [ ! -f "${DSTARGATEWAY_CONFIG}" ]; then
 		eerror "Configuration file ${DSTARGATEWAY_CONFIG} does not exist"
-		eerror "Please create it from: cp /etc/dstarclients/dstargateway.cfg.example ${DSTARGATEWAY_CONFIG}"
+		eerror "Please create it from: cp /etc/dstarclients/DStarGateway.ini.example ${DSTARGATEWAY_CONFIG}"
 		return 1
 	fi
 	
