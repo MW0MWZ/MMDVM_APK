@@ -1,0 +1,98 @@
+# Contributor: MW0MWZ <andy@mw0mwz.co.uk>
+# Maintainer: MW0MWZ <andy@mw0mwz.co.uk>
+pkgname=wiringpi
+pkgver=2025.01.01
+pkgrel=0
+_gitcommit="unknown"
+pkgdesc="WiringPi GPIO library for Raspberry Pi (community fork with Pi 5 support)"
+url="https://github.com/WiringPi/WiringPi"
+arch="armhf aarch64"
+license="LGPL-3.0-or-later"
+makedepends="
+	build-base
+	git
+	linux-headers
+	"
+depends=""
+subpackages="$pkgname-dev"
+source=""
+options="!check"  # No test suite
+giturl="https://github.com/WiringPi/WiringPi.git"
+
+prepare() {
+	rm -rf "$srcdir/WiringPi"
+
+	msg "Cloning WiringPi from $giturl"
+	git clone "$giturl" "$srcdir/WiringPi"
+	cd "$srcdir/WiringPi"
+
+	local git_version=$(git describe --tags --always)
+	msg "WiringPi git version: $git_version"
+
+	cd "$srcdir"
+	default_prepare || true
+}
+
+build() {
+	cd "$srcdir/WiringPi"
+	local upver=$(cat VERSION)
+	msg "Building WiringPi version $upver"
+
+	# Build wiringPi core library
+	cd "$srcdir/WiringPi/wiringPi"
+	make clean || true
+	make \
+		CFLAGS="$CFLAGS -fcommon -fPIC -I." \
+		LDFLAGS="$LDFLAGS" \
+		WIRINGPI_SONAME_SUFFIX=".$upver" \
+		-j $(nproc)
+	# Create unversioned symlink for linking
+	ln -sf libwiringPi.so."$upver" libwiringPi.so
+
+	# Build wiringPiDev library
+	cd "$srcdir/WiringPi/devLib"
+	make clean || true
+	make \
+		CFLAGS="$CFLAGS -fcommon -fPIC -I. -I../wiringPi" \
+		LDFLAGS="$LDFLAGS -L../wiringPi" \
+		WIRINGPI_SONAME_SUFFIX=".$upver" \
+		-j $(nproc)
+	# Create unversioned symlink for linking
+	ln -sf libwiringPiDev.so."$upver" libwiringPiDev.so
+
+	# Build gpio utility
+	cd "$srcdir/WiringPi/gpio"
+	make clean || true
+	make \
+		CFLAGS="$CFLAGS -fcommon -I../wiringPi -I../devLib" \
+		LDFLAGS="$LDFLAGS -L../wiringPi -L../devLib" \
+		-j $(nproc)
+}
+
+package() {
+	cd "$srcdir/WiringPi"
+	local upver=$(cat VERSION)
+
+	# Install wiringPi core library
+	install -Dm755 wiringPi/libwiringPi.so."$upver" \
+		"$pkgdir"/usr/lib/libwiringPi.so."$upver"
+	ln -sf libwiringPi.so."$upver" "$pkgdir"/usr/lib/libwiringPi.so
+
+	# Install wiringPiDev library
+	install -Dm755 devLib/libwiringPiDev.so."$upver" \
+		"$pkgdir"/usr/lib/libwiringPiDev.so."$upver"
+	ln -sf libwiringPiDev.so."$upver" "$pkgdir"/usr/lib/libwiringPiDev.so
+
+	# Install headers
+	install -dm755 "$pkgdir"/usr/include
+	install -m644 wiringPi/*.h "$pkgdir"/usr/include/
+	install -m644 devLib/*.h "$pkgdir"/usr/include/
+
+	# Install gpio utility
+	install -Dm755 gpio/gpio "$pkgdir"/usr/bin/gpio
+
+	# Install license
+	if [ -f COPYING.LESSER ]; then
+		install -Dm644 COPYING.LESSER "$pkgdir"/usr/share/licenses/$pkgname/COPYING.LESSER
+	fi
+}

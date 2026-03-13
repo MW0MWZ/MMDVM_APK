@@ -19,6 +19,7 @@ on:
           - nxdnclients
           - p25clients
           - pocsagclients
+          - wiringpi
           - ysfclients
       alpine_version:
         description: 'Alpine version (or "all" for all versions)'
