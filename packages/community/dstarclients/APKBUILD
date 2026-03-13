@@ -112,16 +112,39 @@ package() {
 		install -Dm644 "DStarGateway.ini" "$pkgdir/etc/dstarclients/DStarGateway.ini.example"
 	fi
 
-	# Install data files from Data directory
+	# Patch default paths and user in the example config
+	if [ -f "$pkgdir/etc/dstarclients/DStarGateway.ini.example" ]; then
+		sed -i 's|^Data=.*|Data=/usr/share/dstarclients/|' \
+			"$pkgdir/etc/dstarclients/DStarGateway.ini.example"
+		sed -i 's|^HostsFiles=.*|HostsFiles=/etc/dstarclients/|' \
+			"$pkgdir/etc/dstarclients/DStarGateway.ini.example"
+		sed -i 's|^User=.*|User=mmdvm|' \
+			"$pkgdir/etc/dstarclients/DStarGateway.ini.example"
+	fi
+
+	# Install data files from Data directory (voice/audio files only, not host .txt files)
 	install -dm755 "$pkgdir/usr/share/dstarclients"
 	if [ -d "Data" ]; then
 		cd Data
-		for file in *.txt *.dat *.ambe *.indx; do
+		for file in *.dat *.ambe *.indx; do
 			[ -f "$file" ] && install -Dm644 "$file" \
 				"$pkgdir/usr/share/dstarclients/$file"
 		done
 		cd ..
 	fi
+
+	# Download current host files from pistar.uk to /etc/dstarclients
+	install -dm755 "$pkgdir/etc/dstarclients"
+	for hostfile in CCS_Hosts.txt DCS_Hosts.txt DExtra_Hosts.txt DPlus_Hosts.txt; do
+		msg "Downloading $hostfile from pistar.uk"
+		wget -q -O "$pkgdir/etc/dstarclients/$hostfile" \
+			"http://www.pistar.uk/downloads/$hostfile" || \
+			msg2 "Warning: failed to download $hostfile, using upstream copy"
+		# Fall back to upstream copy if download failed
+		if [ ! -s "$pkgdir/etc/dstarclients/$hostfile" ] && [ -f "Data/$hostfile" ]; then
+			install -Dm644 "Data/$hostfile" "$pkgdir/etc/dstarclients/$hostfile"
+		fi
+	done
 
 	# Install documentation
 	install -dm755 "$pkgdir/usr/share/doc/$pkgname"
