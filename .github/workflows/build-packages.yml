@@ -188,8 +188,14 @@ jobs:
               cd "$TEMP_DIR/repo"
               GIT_COMMIT=$(git rev-parse --short HEAD)
               COMMIT_DATE=$(git show -s --format=%cd --date=format:'%Y.%m.%d' HEAD)
+              # Use upstream VERSION file if present, otherwise use commit date
+              if [ -f "VERSION" ]; then
+                PKG_VERSION=$(cat VERSION | tr -d '[:space:]')
+                echo "Using upstream VERSION file: $PKG_VERSION"
+              else
+                PKG_VERSION="${COMMIT_DATE}"
+              fi
               cd - > /dev/null
-              PKG_VERSION="${COMMIT_DATE}"
             else
               GIT_COMMIT="unknown"
               PKG_VERSION="$(date +%Y.%m.%d)"
