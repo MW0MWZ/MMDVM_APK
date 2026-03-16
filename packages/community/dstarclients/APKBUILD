@@ -13,12 +13,10 @@ makedepends="
 	git
 	linux-headers
 	boost-dev
-	curl-dev
 	mosquitto-dev
 	nlohmann-json
 	"
 depends="
-	bind-tools
 	libgcc
 	libstdc++
 	mosquitto-libs
@@ -71,8 +69,8 @@ build() {
 		DATA_DIR="/usr/share/dstarclients" \
 		LOG_DIR="/var/log/dstarclients" \
 		BIN_DIR="/usr/bin" \
-		LDFLAGS="$LDFLAGS -lcurl -lpthread -lmosquitto" \
-		LIBS="-lcurl -lpthread -lmosquitto" \
+		LDFLAGS="$LDFLAGS -lpthread -lmosquitto" \
+		LIBS="-lpthread -lmosquitto" \
 		-j $(nproc) \
 		all
 }

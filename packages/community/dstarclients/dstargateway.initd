@@ -32,13 +32,7 @@ start_pre() {
 		eerror "Please create it from: cp /etc/dstarclients/DStarGateway.ini.example ${DSTARGATEWAY_CONFIG}"
 		return 1
 	fi
-	
-	# Check if bind-tools is installed (provides host command)
-	if ! command -v host >/dev/null 2>&1; then
-		ewarn "bind-tools is not installed - DNS lookups may fail"
-		ewarn "Install with: apk add bind-tools"
-	fi
-	
+
 	# Create log directory if it doesn't exist
 	checkpath -d -o "${DSTARGATEWAY_USER}:${DSTARGATEWAY_GROUP}" -m 0755 /var/log/dstarclients
 	
