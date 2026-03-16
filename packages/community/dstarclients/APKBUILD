@@ -133,18 +133,11 @@ package() {
 		cd ..
 	fi
 
-	# Download current host files from pistar.uk to /etc/dstarclients
+	# Download current host data from pistar.uk to /etc/dstarclients
 	install -dm755 "$pkgdir/etc/dstarclients"
-	for hostfile in CCS_Hosts.txt DCS_Hosts.txt DExtra_Hosts.txt DPlus_Hosts.txt; do
-		msg "Downloading $hostfile from pistar.uk"
-		wget -q -O "$pkgdir/etc/dstarclients/$hostfile" \
-			"http://www.pistar.uk/downloads/$hostfile" || \
-			msg2 "Warning: failed to download $hostfile, using upstream copy"
-		# Fall back to upstream copy if download failed
-		if [ ! -s "$pkgdir/etc/dstarclients/$hostfile" ] && [ -f "Data/$hostfile" ]; then
-			install -Dm644 "Data/$hostfile" "$pkgdir/etc/dstarclients/$hostfile"
-		fi
-	done
+	msg "Downloading DStar_Hosts.json from pistar.uk"
+	wget -q -O "$pkgdir/etc/dstarclients/DStar_Hosts.json" \
+		"https://www.pistar.uk/downloads/DStar_Hosts.json"
 
 	# Install documentation
 	install -dm755 "$pkgdir/usr/share/doc/$pkgname"
