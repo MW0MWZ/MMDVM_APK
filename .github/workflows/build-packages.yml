@@ -28,8 +28,8 @@ on:
         type: choice
         options:
           - all
+          - '3.23'
           - '3.22'
-          - '3.21'
       versions_to_keep:
         description: 'Number of versions to keep per package during cleanup'
         required: false
@@ -58,7 +58,7 @@ jobs:
         run: |
           if [ "${{ github.event.inputs.alpine_version }}" = "all" ] || [ -z "${{ github.event.inputs.alpine_version }}" ]; then
             # Build for all supported versions
-            echo 'versions=["3.22","3.21"]' >> $GITHUB_OUTPUT
+            echo 'versions=["3.23","3.22"]' >> $GITHUB_OUTPUT
           else
             # Build for specific version
             echo 'versions=["${{ github.event.inputs.alpine_version }}"]' >> $GITHUB_OUTPUT
@@ -205,7 +205,7 @@ jobs:
             PKG_RELEASE="0"
             
             # Check existing packages in gh-pages across ALL architectures (including noarch)
-            for CHECK_VERSION in 3.22 3.21; do
+            for CHECK_VERSION in 3.23 3.22; do
               for CHECK_ARCH in x86_64 armhf aarch64 noarch; do
                 GH_PAGES_DIR="gh-pages-check/v${CHECK_VERSION}/community/${CHECK_ARCH}"
                 
@@ -565,7 +565,7 @@ jobs:
           cp _config.yml deploy/ 2>/dev/null || true
           
           echo "Repository structure after merge:"
-          for version in 3.22 3.21; do
+          for version in 3.23 3.22; do
             echo "Alpine $version:"
             for arch in x86_64 armhf aarch64 noarch; do
               if [ -d "deploy/v$version/community/$arch" ]; then
@@ -605,7 +605,7 @@ jobs:
           }
           
           # Process each Alpine version and architecture (including noarch)
-          for VERSION in 3.22 3.21; do
+          for VERSION in 3.23 3.22; do
             for ARCH in x86_64 armhf aarch64 noarch; do
               REPO_DIR="deploy/v${VERSION}/community/${ARCH}"
               
@@ -711,7 +711,7 @@ jobs:
           echo "Generating fresh APKINDEX for ALL packages (after cleanup)"
           
           # Generate indexes for each Alpine version and architecture (including noarch)
-          for VERSION in 3.22 3.21; do
+          for VERSION in 3.23 3.22; do
             for ARCH in x86_64 armhf aarch64 noarch; do
               REPO_DIR="deploy/v${VERSION}/community/${ARCH}"
               
@@ -793,7 +793,7 @@ jobs:
           
           TOTAL_PACKAGES=0
           
-          for version in 3.22 3.21; do
+          for version in 3.23 3.22; do
             echo "## Alpine $version" >> deploy/STATS.md
             for arch in x86_64 armhf aarch64 noarch; do
               if [ -d "deploy/v$version/community/$arch" ]; then
@@ -819,7 +819,7 @@ jobs:
           
           echo ""
           echo "Final deployment summary:"
-          for version in 3.22 3.21; do
+          for version in 3.23 3.22; do
             echo "Alpine $version:"
             for arch in x86_64 armhf aarch64 noarch; do
               if [ -d "deploy/v$version/community/$arch" ]; then
@@ -842,20 +842,20 @@ jobs:
             echo ""
             echo "To use this repository, add the following to your /etc/apk/repositories:"
             echo ""
-            echo "### For Alpine 3.22:"
+            echo "### For Alpine 3.23:"
             echo '```'
-            echo "https://apk.pistar.uk/v3.22/community/x86_64"
-            echo "https://apk.pistar.uk/v3.22/community/noarch"
+            echo "https://apk.pistar.uk/v3.23/community/x86_64"
+            echo "https://apk.pistar.uk/v3.23/community/noarch"
             echo '```'
             echo ""
             echo "For ARM systems, replace x86_64 with:"
             echo "- armhf for 32-bit ARM (Raspberry Pi Zero/1/2)"
             echo "- aarch64 for 64-bit ARM (Raspberry Pi 3/4/5)"
             echo ""
-            echo "### For Alpine 3.21:"
+            echo "### For Alpine 3.22:"
             echo '```'
-            echo "https://apk.pistar.uk/v3.21/community/x86_64"
-            echo "https://apk.pistar.uk/v3.21/community/noarch"
+            echo "https://apk.pistar.uk/v3.22/community/x86_64"
+            echo "https://apk.pistar.uk/v3.22/community/noarch"
             echo '```'
             echo ""
             echo "## Adding the Repository Key"
@@ -897,7 +897,7 @@ jobs:
             echo "Purging Cloudflare cache for APKINDEX files..."
             
             # Purge all APKINDEX files (including noarch)
-            FILES_TO_PURGE='["https://apk.pistar.uk/v3.22/community/x86_64/APKINDEX.tar.gz","https://apk.pistar.uk/v3.22/community/armhf/APKINDEX.tar.gz","https://apk.pistar.uk/v3.22/community/aarch64/APKINDEX.tar.gz","https://apk.pistar.uk/v3.22/community/noarch/APKINDEX.tar.gz","https://apk.pistar.uk/v3.21/community/x86_64/APKINDEX.tar.gz","https://apk.pistar.uk/v3.21/community/armhf/APKINDEX.tar.gz","https://apk.pistar.uk/v3.21/community/aarch64/APKINDEX.tar.gz","https://apk.pistar.uk/v3.21/community/noarch/APKINDEX.tar.gz"]'
+            FILES_TO_PURGE='["https://apk.pistar.uk/v3.23/community/x86_64/APKINDEX.tar.gz","https://apk.pistar.uk/v3.23/community/armhf/APKINDEX.tar.gz","https://apk.pistar.uk/v3.23/community/aarch64/APKINDEX.tar.gz","https://apk.pistar.uk/v3.23/community/noarch/APKINDEX.tar.gz","https://apk.pistar.uk/v3.22/community/x86_64/APKINDEX.tar.gz","https://apk.pistar.uk/v3.22/community/armhf/APKINDEX.tar.gz","https://apk.pistar.uk/v3.22/community/aarch64/APKINDEX.tar.gz","https://apk.pistar.uk/v3.22/community/noarch/APKINDEX.tar.gz"]'
             
             RESPONSE=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE/purge_cache" \
               -H "Authorization: Bearer $CLOUDFLARE_TOKEN" \

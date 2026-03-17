@@ -7,7 +7,7 @@
 
 set -e
 
-ALPINE_VERSION="${1:-3.22}"
+ALPINE_VERSION="${1:-3.23}"
 REPO_BASE="repo/v${ALPINE_VERSION}/community"
 
 echo "Generating repository index for Alpine ${ALPINE_VERSION}"

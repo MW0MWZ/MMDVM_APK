@@ -38,8 +38,8 @@ Alpine Linux package repository for Ham Radio software, hosted on GitHub Pages.
 
 ## 🏔️ Supported Alpine Linux Versions
 
-- Alpine 3.22 (latest)
-- Alpine 3.21
+- Alpine 3.23 (latest)
+- Alpine 3.22
 
 ## 🖥️ Supported Architectures
 
@@ -54,8 +54,8 @@ Alpine Linux package repository for Ham Radio software, hosted on GitHub Pages.
 Add the repository and install packages on your Alpine Linux system:
 
 ```bash
-# Add repository (replace 3.22 with your Alpine version)
-echo "https://apk.pistar.uk/v3.22/community" >> /etc/apk/repositories
+# Add repository (replace 3.23 with your Alpine version)
+echo "https://apk.pistar.uk/v3.23/community" >> /etc/apk/repositories
 
 # Add public key
 wget -O /etc/apk/keys/hamradio.rsa.pub https://apk.pistar.uk/hamradio.rsa.pub
@@ -202,9 +202,9 @@ git clone https://github.com/MW0MWZ/MMDVM_APK.git
 cd MMDVM_APK
 
 # Test build (requires Docker)
-./scripts/build-package.sh mmdvmhost x86_64 3.22
-./scripts/build-package.sh dmrclients x86_64 3.22
-./scripts/build-package.sh dstarrepeater x86_64 3.22
+./scripts/build-package.sh mmdvmhost x86_64 3.23
+./scripts/build-package.sh dmrclients x86_64 3.23
+./scripts/build-package.sh dstarrepeater x86_64 3.23
 ```
 
 ## 📚 Documentation

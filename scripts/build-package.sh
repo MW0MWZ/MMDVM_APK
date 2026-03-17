@@ -7,7 +7,7 @@ set -e
 
 PACKAGE_NAME="${1:-mmdvmhost}"
 ARCH="${2:-x86_64}"
-ALPINE_VERSION="${3:-3.22}"
+ALPINE_VERSION="${3:-3.23}"
 
 echo "Building package: $PACKAGE_NAME"
 echo "Architecture: $ARCH"

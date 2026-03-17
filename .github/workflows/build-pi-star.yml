@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         arch: [x86_64, armhf, aarch64]
-        alpine_version: ['3.22']
+        alpine_version: ['3.23']
         include:
           - arch: x86_64
             platform: linux/amd64
@@ -357,7 +357,7 @@ jobs:
             # Copy .apk files (not APKINDEX — we regenerate those)
             find "$ARTIFACT_DIR" -name "*.apk" -type f | while read pkg; do
               # Determine target directory from path structure
-              # artifact path: artifacts/pi-star-alpine3.22-x86_64/v3.22/community/x86_64/pkg.apk
+              # artifact path: artifacts/pi-star-alpine3.23-x86_64/v3.23/community/x86_64/pkg.apk
               REL_PATH=$(echo "$pkg" | sed "s|$ARTIFACT_DIR||")
               TARGET_DIR="gh-pages/$(dirname "$REL_PATH")"
               mkdir -p "$TARGET_DIR"

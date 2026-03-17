@@ -18,8 +18,8 @@ on:
         default: 'all'
         options:
           - 'all'
+          - '3.23'
           - '3.22'
-          - '3.21'
 
 # Prevent concurrent update checks
 concurrency:
