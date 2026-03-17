@@ -4,20 +4,20 @@
 
 To use this repository, add the following to your /etc/apk/repositories:
 
-### For Alpine 3.22:
+### For Alpine 3.23:
 ```
-https://apk.pistar.uk/v3.22/community/x86_64
-https://apk.pistar.uk/v3.22/community/noarch
+https://apk.pistar.uk/v3.23/community/x86_64
+https://apk.pistar.uk/v3.23/community/noarch
 ```
 
 For ARM systems, replace x86_64 with:
 - armhf for 32-bit ARM (Raspberry Pi Zero/1/2)
 - aarch64 for 64-bit ARM (Raspberry Pi 3/4/5)
 
-### For Alpine 3.21:
+### For Alpine 3.22:
 ```
-https://apk.pistar.uk/v3.21/community/x86_64
-https://apk.pistar.uk/v3.21/community/noarch
+https://apk.pistar.uk/v3.22/community/x86_64
+https://apk.pistar.uk/v3.22/community/noarch
 ```
 
 ## Adding the Repository Key
