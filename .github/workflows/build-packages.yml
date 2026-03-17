@@ -284,7 +284,13 @@ jobs:
                 # Add RasPINE repo first so its packages (e.g. wiringpi 3.x) take priority over Alpine community
                 if [ "'${ARCH}'" != "x86_64" ]; then
                   wget -q -O /etc/apk/keys/raspine.rsa.pub https://raspine.pistar.uk/raspine.rsa.pub
-                  echo "https://raspine.pistar.uk/v'${ALPINE_VERSION}'/community" >> /etc/apk/repositories
+                  # Try requested version, fall back to 3.22 if not available
+                  RASPINE_VER="'${ALPINE_VERSION}'"
+                  if ! wget -q --spider "https://raspine.pistar.uk/v${RASPINE_VER}/community" 2>/dev/null; then
+                    RASPINE_VER="3.22"
+                    echo "RasPINE repo not available for v'${ALPINE_VERSION}', falling back to v${RASPINE_VER}"
+                  fi
+                  echo "https://raspine.pistar.uk/v${RASPINE_VER}/community" >> /etc/apk/repositories
                 fi
                 echo "https://dl-cdn.alpinelinux.org/alpine/v'${ALPINE_VERSION}'/community" >> /etc/apk/repositories
                 apk update
