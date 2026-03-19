@@ -2,54 +2,17 @@
 # Configuration file for DStarRepeater OpenRC service
 
 # User and group to run the daemon as
-# Note: User must be created manually and should have access to serial/USB devices
-DSTAR_USER="dstar"
-DSTAR_GROUP="dstar"
+#DSTAR_USER="mmdvm"
+#DSTAR_GROUP="mmdvm"
 
 # Path to the DStarRepeater daemon
-# Default: /usr/bin/dstarrepeaterd
 #DSTAR_DAEMON="/usr/bin/dstarrepeaterd"
 
 # Path to the configuration file
-# Default: /etc/dstarrepeater/dstarrepeater.conf
-#DSTAR_CONFIG="/etc/dstarrepeater/dstarrepeater.conf"
+#DSTAR_CONFIG="/etc/dstarrepeater/dstarrepeater.ini"
 
 # Log directory
-# Default: /var/log/dstarrepeater
 #DSTAR_LOGDIR="/var/log/dstarrepeater"
 
 # PID file location
-# Default: /run/dstarrepeaterd.pid
 #DSTAR_PIDFILE="/run/dstarrepeaterd.pid"
-
-# Additional options to pass to the daemon
-# Examples:
-#   "-daemon"        Run as daemon (if not handled by init)
-#   "-debug"         Enable debug logging
-#   "-nolog"         Disable logging
-#DSTAR_OPTS=""
-
-# For different repeater types, change the daemon:
-# For Analogue Repeater:
-#DSTAR_DAEMON="/usr/bin/analoguerepeaterd"
-#DSTAR_CONFIG="/etc/dstarrepeater/analoguerepeater.conf"
-
-# For DVAP Node:
-#DSTAR_DAEMON="/usr/bin/dvapnoded"
-#DSTAR_CONFIG="/etc/dstarrepeater/dvapnode.conf"
-
-# For DVRPTR Repeater:
-#DSTAR_DAEMON="/usr/bin/dvrptrrepeaterd"
-#DSTAR_CONFIG="/etc/dstarrepeater/dvrptrrepeater.conf"
-
-# For GMSK Repeater:
-#DSTAR_DAEMON="/usr/bin/gmskrepeaterd"
-#DSTAR_CONFIG="/etc/dstarrepeater/gmskrepeater.conf"
-
-# For Sound Card Repeater:
-#DSTAR_DAEMON="/usr/bin/soundcardrepeaterd"
-#DSTAR_CONFIG="/etc/dstarrepeater/soundcardrepeater.conf"
-
-# For Split Repeater:
-#DSTAR_DAEMON="/usr/bin/splitrepeaterd"
-#DSTAR_CONFIG="/etc/dstarrepeater/splitrepeater.conf"

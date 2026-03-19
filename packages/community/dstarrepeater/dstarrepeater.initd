@@ -5,16 +5,15 @@ name="DStarRepeater"
 description="D-Star Repeater Controller for Amateur Radio"
 
 # Default values - can be overridden in /etc/conf.d/dstarrepeater
-: ${DSTAR_USER:=dstar}
-: ${DSTAR_GROUP:=dstar}
+: ${DSTAR_USER:=mmdvm}
+: ${DSTAR_GROUP:=mmdvm}
 : ${DSTAR_DAEMON:=/usr/bin/dstarrepeaterd}
-: ${DSTAR_CONFIG:=/etc/dstarrepeater/dstarrepeater.conf}
+: ${DSTAR_CONFIG:=/etc/dstarrepeater/dstarrepeater.ini}
 : ${DSTAR_LOGDIR:=/var/log/dstarrepeater}
 : ${DSTAR_PIDFILE:=/run/dstarrepeaterd.pid}
-: ${DSTAR_OPTS:=""}
 
 command="$DSTAR_DAEMON"
-command_args="-config $DSTAR_CONFIG -logdir $DSTAR_LOGDIR $DSTAR_OPTS"
+command_args="$DSTAR_CONFIG"
 command_background=true
 pidfile="$DSTAR_PIDFILE"
 start_stop_daemon_args="--user $DSTAR_USER:$DSTAR_GROUP"
@@ -29,9 +28,9 @@ start_pre() {
 	# Create user if it doesn't exist
 	if ! id -u "${DSTAR_USER}" >/dev/null 2>&1; then
 		einfo "Creating user ${DSTAR_USER}"
-		adduser -D -H -h /var/lib/dstarrepeater -s /sbin/nologin -G "${DSTAR_GROUP}" "${DSTAR_USER}" 2>/dev/null || \
+		adduser -D -H -s /sbin/nologin -G "${DSTAR_GROUP}" "${DSTAR_USER}" 2>/dev/null || \
 		adduser -D -H -s /sbin/nologin "${DSTAR_USER}" 2>/dev/null
-		
+
 		# Add to dialout group for serial port access (for Modem Access)
 		addgroup "${DSTAR_USER}" dialout 2>/dev/null || true
 	fi
@@ -39,33 +38,16 @@ start_pre() {
 	# Check for configuration file
 	if [ ! -f "$DSTAR_CONFIG" ]; then
 		eerror "Configuration file $DSTAR_CONFIG does not exist"
-		eerror "Please create a configuration file. Example files can be found in /etc/dstarrepeater/"
+		eerror "Please create it from: cp /etc/dstarrepeater/dstarrepeater.ini.example $DSTAR_CONFIG"
 		return 1
 	fi
-	
+
 	# Create/check log directory
-	if [ ! -d "$DSTAR_LOGDIR" ]; then
-		mkdir -p "$DSTAR_LOGDIR"
-	fi
-	chown -R "$DSTAR_USER:$DSTAR_GROUP" "$DSTAR_LOGDIR"
-	chmod 755 "$DSTAR_LOGDIR"
-	
-	# Create PID directory if needed
-	local piddir=$(dirname "$DSTAR_PIDFILE")
-	if [ ! -d "$piddir" ]; then
-		mkdir -p "$piddir"
-	fi
-	
-	# Check for data directory
-	if [ ! -d /usr/share/dstarrepeater ]; then
-		ewarn "Data directory /usr/share/dstarrepeater does not exist"
-		ewarn "Some features may not work properly"
-	fi
-	
+	checkpath -d -o "$DSTAR_USER:$DSTAR_GROUP" -m 0755 "$DSTAR_LOGDIR"
+
 	# For ARM platforms, check GPIO access if needed
 	case "$(uname -m)" in
 		arm*|aarch64)
-			# Check if user has access to GPIO
 			if [ -e /dev/gpiomem ]; then
 				if ! groups "$DSTAR_USER" | grep -q gpio; then
 					ewarn "User '$DSTAR_USER' is not in the 'gpio' group"
@@ -75,7 +57,7 @@ start_pre() {
 			fi
 			;;
 	esac
-	
+
 	return 0
 }
 
@@ -103,19 +85,4 @@ reload() {
 	ebegin "Reloading $name configuration"
 	start-stop-daemon --signal HUP --pidfile "$DSTAR_PIDFILE"
 	eend $?
-}
-
-status() {
-	if [ -f "$DSTAR_PIDFILE" ]; then
-		if kill -0 $(cat "$DSTAR_PIDFILE") 2>/dev/null; then
-			einfo "$name is running (PID: $(cat $DSTAR_PIDFILE))"
-			return 0
-		else
-			ewarn "$name PID file exists but process is not running"
-			return 1
-		fi
-	else
-		einfo "$name is not running"
-		return 3
-	fi
 }
