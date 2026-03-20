@@ -5,7 +5,7 @@ pkgname=dstarrepeater
 pkgver=2025.01.01
 pkgrel=1
 # Git commit will be captured during build
-_gitcommit="630ff49"
+_gitcommit="84a3344"
 pkgdesc="D-Star Repeater Controller for Amateur Radio - Dedicated D-Star only repeater system"
 url="https://github.com/g4klx/DStarRepeater"
 arch="all"
