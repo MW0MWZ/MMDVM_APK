@@ -3,7 +3,7 @@
 pkgname=dstarclients
 pkgver=2025.01.01
 pkgrel=0
-_gitcommit="55cb967"
+_gitcommit="3846360"
 pkgdesc="D-Star Gateway and tools for digital voice Amateur Radio communications"
 url="https://github.com/g4klx/DStarGateway"
 arch="all"
