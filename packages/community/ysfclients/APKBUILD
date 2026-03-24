@@ -5,7 +5,7 @@ pkgname=ysfclients
 pkgver=2025.01.01
 pkgrel=0
 # Git commit will be captured during build
-_gitcommit="7bc5691"
+_gitcommit="7980245"
 pkgdesc="YSF Clients for Amateur Radio - YSF Gateway, Parrot, DGId Gateway and Cross-Mode converters for digital communications"
 url="https://github.com/g4klx/YSFClients"
 arch="x86_64 armhf aarch64"

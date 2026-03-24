@@ -5,7 +5,7 @@ pkgname=p25clients
 pkgver=2025.01.01
 pkgrel=0
 # Git commit will be captured during build
-_gitcommit="fea2a1c"
+_gitcommit="b579c32"
 pkgdesc="P25 Clients for Amateur Radio - P25 Gateway and Parrot for digital radio communications"
 url="https://github.com/g4klx/P25Clients"
 arch="x86_64 armhf aarch64"
