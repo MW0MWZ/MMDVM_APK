@@ -5,7 +5,7 @@ pkgname=aprsclients
 pkgver=2025.01.01
 pkgrel=0
 # Git commit will be captured during build
-_gitcommit="daddd8e"
+_gitcommit="95f1ad7"
 pkgdesc="APRS Clients for Amateur Radio - Gateway between APRS-IS and RF networks"
 url="https://github.com/g4klx/APRSGateway"
 arch="x86_64 armhf aarch64"
