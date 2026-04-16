@@ -5,7 +5,7 @@ pkgname=mmdvmhost
 pkgver=2025.01.01
 pkgrel=0
 # Git commit will be captured during build
-_gitcommit="be80480"
+_gitcommit="47467bd"
 pkgdesc="MMDVM Host Software and Calibration Tool for Digital Amateur Radio"
 url="https://github.com/g4klx/MMDVMHost"
 arch="x86_64 armhf aarch64"
