@@ -5,7 +5,7 @@ pkgname=pocsagclients
 pkgver=2025.01.01
 pkgrel=0
 # Git commit will be captured during build
-_gitcommit="5527546"
+_gitcommit="b869053"
 pkgdesc="POCSAG Clients for Amateur Radio - DAPNET Gateway for POCSAG paging network"
 url="https://github.com/g4klx/DAPNETGateway"
 arch="x86_64 armhf aarch64"
