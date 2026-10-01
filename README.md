@@ -22,7 +22,7 @@ Alpine Linux package repository for Ham Radio software, hosted on GitHub Pages.
 
 | Package | Description | Components | Upstream |
 |---------|-------------|------------|----------|
-| **dstarrepeater** | D-Star Repeater Controller | dstarrepeaterd, dstarrepeaterconfig | [DStarRepeater](https://github.com/g4klx/DStarRepeater) |
+| **dstarrepeater** | D-Star Repeater Controller | dstarrepeaterd | [DStarRepeater](https://github.com/g4klx/DStarRepeater) |
 
 ### Gateway & Client Packages
 
