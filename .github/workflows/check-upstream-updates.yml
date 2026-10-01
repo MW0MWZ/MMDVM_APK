@@ -55,7 +55,7 @@ jobs:
             
             # Try to get latest commit from default branch with auth token
             for branch in main master develop; do
-              commit=$(curl -s -H "Accept: application/vnd.github.v3+json" \
+              commit=$(curl -sL -H "Accept: application/vnd.github.v3+json" \
                 -H "Authorization: token ${GITHUB_TOKEN}" \
                 "https://api.github.com/repos/${repo}/commits/${branch}" | \
                 grep '"sha"' | head -1 | cut -d'"' -f4 | cut -c1-7)
@@ -67,13 +67,13 @@ jobs:
             done
             
             # If all branches fail, try to get the default branch
-            default_branch=$(curl -s -H "Accept: application/vnd.github.v3+json" \
+            default_branch=$(curl -sL -H "Accept: application/vnd.github.v3+json" \
               -H "Authorization: token ${GITHUB_TOKEN}" \
               "https://api.github.com/repos/${repo}" | \
               grep '"default_branch"' | cut -d'"' -f4)
             
             if [ -n "$default_branch" ]; then
-              commit=$(curl -s -H "Accept: application/vnd.github.v3+json" \
+              commit=$(curl -sL -H "Accept: application/vnd.github.v3+json" \
                 -H "Authorization: token ${GITHUB_TOKEN}" \
                 "https://api.github.com/repos/${repo}/commits/${default_branch}" | \
                 grep '"sha"' | head -1 | cut -d'"' -f4 | cut -c1-7)
@@ -260,7 +260,7 @@ jobs:
             
             # Try to get latest commit from default branch with auth
             for branch in main master develop; do
-              commit=$(curl -s -H "Accept: application/vnd.github.v3+json" \
+              commit=$(curl -sL -H "Accept: application/vnd.github.v3+json" \
                 -H "Authorization: token ${GITHUB_TOKEN}" \
                 "https://api.github.com/repos/${repo}/commits/${branch}" | \
                 grep '"sha"' | head -1 | cut -d'"' -f4 | cut -c1-7)
@@ -272,13 +272,13 @@ jobs:
             done
             
             # Try default branch
-            default_branch=$(curl -s -H "Accept: application/vnd.github.v3+json" \
+            default_branch=$(curl -sL -H "Accept: application/vnd.github.v3+json" \
               -H "Authorization: token ${GITHUB_TOKEN}" \
               "https://api.github.com/repos/${repo}" | \
               grep '"default_branch"' | cut -d'"' -f4)
             
             if [ -n "$default_branch" ]; then
-              commit=$(curl -s -H "Accept: application/vnd.github.v3+json" \
+              commit=$(curl -sL -H "Accept: application/vnd.github.v3+json" \
                 -H "Authorization: token ${GITHUB_TOKEN}" \
                 "https://api.github.com/repos/${repo}/commits/${default_branch}" | \
                 grep '"sha"' | head -1 | cut -d'"' -f4 | cut -c1-7)

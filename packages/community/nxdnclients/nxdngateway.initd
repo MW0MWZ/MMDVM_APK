@@ -27,7 +27,7 @@ start_pre() {
 	# Check if configuration exists
 	if [ ! -f "${NXDNGATEWAY_CONFIG}" ]; then
 		eerror "NXDNGateway configuration file ${NXDNGATEWAY_CONFIG} does not exist"
-		eerror "Please create it from: cp /etc/nxdnclients/NXDNGateway.ini.example ${NXDNGATEWAY_CONFIG}"
+		eerror "Please create it from the template: cp /usr/share/nxdnclients/NXDNGateway.ini.example ${NXDNGATEWAY_CONFIG}"
 		return 1
 	fi
 	

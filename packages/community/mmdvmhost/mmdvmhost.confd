@@ -1,7 +1,7 @@
-# Configuration for MMDVMHost service
+# Configuration for MMDVM-Host service
 
 # Configuration file location
-# MMDVMHOST_CONFIG="/etc/mmdvmhost/MMDVM.ini"
+# MMDVMHOST_CONFIG="/etc/mmdvmhost/MMDVM-Host.ini"
 
 # User and group to run as
 # Note: User must have access to serial devices

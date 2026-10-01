@@ -1,0 +1,14 @@
+#!/bin/sh
+# Post-install/upgrade script for dstarclients package
+
+# Seed the D-Star host list from the package default if missing; the
+# host file updater keeps the copy in /etc/dstarclients current.
+if [ ! -f /etc/dstarclients/DStar_Hosts.json ] && [ -f /usr/share/dstarclients/DStar_Hosts.json ]; then
+	cp /usr/share/dstarclients/DStar_Hosts.json /etc/dstarclients/DStar_Hosts.json
+fi
+
+# Templates now live in /usr/share/dstarclients; remove the stale copy
+# older versions of this package installed into /etc/dstarclients.
+rm -f /etc/dstarclients/DStarGateway.ini.example
+
+exit 0

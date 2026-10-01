@@ -89,16 +89,12 @@ package() {
 			install -Dm755 P25Gateway "$pkgdir"/usr/bin/P25Gateway
 		fi
 		
-		# Install configuration sample to /usr/share
+		# Install configuration template to /usr/share (package-owned)
 		if [ -f P25Gateway.ini ]; then
-			install -Dm644 P25Gateway.ini "$pkgdir"/usr/share/p25clients/P25Gateway.ini.sample
+			install -Dm644 P25Gateway.ini "$pkgdir"/usr/share/p25clients/P25Gateway.ini.example
 		fi
 		
-		# Also install configuration example to /etc
 		install -dm755 "$pkgdir"/etc/p25clients
-		if [ -f P25Gateway.ini ]; then
-			install -Dm644 P25Gateway.ini "$pkgdir"/etc/p25clients/P25Gateway.ini.example
-		fi
 		
 		# Install audio files if they exist
 		if [ -d "Audio" ] || [ -d "audio" ]; then
@@ -118,15 +114,11 @@ package() {
 			install -Dm755 P25Parrot "$pkgdir"/usr/bin/P25Parrot
 		fi
 		
-		# Install configuration sample to /usr/share
+		# Install configuration template to /usr/share (package-owned)
 		if [ -f P25Parrot.ini ]; then
-			install -Dm644 P25Parrot.ini "$pkgdir"/usr/share/p25clients/P25Parrot.ini.sample
+			install -Dm644 P25Parrot.ini "$pkgdir"/usr/share/p25clients/P25Parrot.ini.example
 		fi
 		
-		# Also install configuration example to /etc
-		if [ -f P25Parrot.ini ]; then
-			install -Dm644 P25Parrot.ini "$pkgdir"/etc/p25clients/P25Parrot.ini.example
-		fi
 		
 		cd ..
 	fi

@@ -12,29 +12,18 @@ case "$(uname -m)" in
 	arm*|aarch64)
 		# ARM platforms need hardware access capabilities and groups
 		
-		# Set capabilities on MMDVMHost binary for GPIO access
-		# This is necessary because capabilities might be stripped during install
-		if [ -x /usr/bin/MMDVMHost ]; then
-			if command -v setcap >/dev/null 2>&1; then
-				setcap 'cap_sys_rawio,cap_dac_override+ep' /usr/bin/MMDVMHost 2>/dev/null || {
-					echo "Warning: Could not set capabilities on /usr/bin/MMDVMHost"
-					echo "You may need to run as root:"
-					echo "  setcap 'cap_sys_rawio,cap_dac_override+ep' /usr/bin/MMDVMHost"
-				}
-			fi
-		fi
+		# Set capabilities for GPIO/I2C access. This is necessary because
+		# capabilities might be stripped during install.
+		for bin in /usr/bin/MMDVM-Host /usr/bin/MMDVM-Display; do
+			[ -x "$bin" ] || continue
+			command -v setcap >/dev/null 2>&1 || break
+			setcap 'cap_sys_rawio,cap_dac_override+ep' "$bin" 2>/dev/null || {
+				echo "Warning: Could not set capabilities on $bin"
+				echo "You may need to run as root:"
+				echo "  setcap 'cap_sys_rawio,cap_dac_override+ep' $bin"
+			}
+		done
 
-		# Set capabilities on DisplayDriver binary for GPIO/I2C access
-		if [ -x /usr/bin/DisplayDriver ]; then
-			if command -v setcap >/dev/null 2>&1; then
-				setcap 'cap_sys_rawio,cap_dac_override+ep' /usr/bin/DisplayDriver 2>/dev/null || {
-					echo "Warning: Could not set capabilities on /usr/bin/DisplayDriver"
-					echo "You may need to run as root:"
-					echo "  setcap 'cap_sys_rawio,cap_dac_override+ep' /usr/bin/DisplayDriver"
-				}
-			fi
-		fi
-		
 		# Add mmdvm user to hardware access groups
 		addgroup mmdvm kmem 2>/dev/null || true     # For /dev/mem GPIO access
 		addgroup mmdvm dialout 2>/dev/null || true  # For serial port access
@@ -56,21 +45,42 @@ if [ -d /var/log/mmdvmhost ]; then
 	find /var/log/mmdvmhost -maxdepth 0 -exec chown mmdvm:mmdvm {} \; 2>/dev/null || true
 fi
 
-# If configuration doesn't exist, copy the example
-if [ ! -f /etc/mmdvmhost/MMDVM.ini ]; then
-	if [ -f /etc/mmdvmhost/MMDVM.ini.example ]; then
-		cp /etc/mmdvmhost/MMDVM.ini.example /etc/mmdvmhost/MMDVM.ini
-		echo "Created configuration file /etc/mmdvmhost/MMDVM.ini from example"
-		echo "Please edit it to match your hardware setup"
-	fi
-fi
+# Upstream renamed MMDVMHost to MMDVM-Host and DisplayDriver to
+# MMDVM-Display. Carry existing configuration over to the new names.
+# MMDVM.ini was used by older versions of this package's init script.
+migrate_config() {
+	new="$1"; shift
+	[ -e "$new" ] && return 0
+	for old in "$@"; do
+		if [ -f "$old" ]; then
+			mv "$old" "$new"
+			echo "Renamed $old to $new"
+			return 0
+		fi
+	done
+}
+migrate_config /etc/mmdvmhost/MMDVM-Host.ini \
+	/etc/mmdvmhost/MMDVMHost.ini /etc/mmdvmhost/MMDVM.ini
+migrate_config /etc/mmdvmhost/MMDVM-Display.ini \
+	/etc/mmdvmhost/DisplayDriver.ini
 
-if [ ! -f /etc/mmdvmhost/DisplayDriver.ini ]; then
-	if [ -f /etc/mmdvmhost/DisplayDriver.ini.example ]; then
-		cp /etc/mmdvmhost/DisplayDriver.ini.example /etc/mmdvmhost/DisplayDriver.ini
-		echo "Created configuration file /etc/mmdvmhost/DisplayDriver.ini from example"
-		echo "Please edit it to match your display setup"
+# Templates now live in /usr/share/mmdvmhost; remove stale copies that
+# older versions of this package installed into /etc/mmdvmhost.
+rm -f /etc/mmdvmhost/MMDVMHost.ini.example \
+	/etc/mmdvmhost/MMDVM.ini.example \
+	/etc/mmdvmhost/DisplayDriver.ini.example
+
+# Create configuration from the package templates if it doesn't exist
+for name in MMDVM-Host MMDVM-Display; do
+	if [ ! -f /etc/mmdvmhost/$name.ini ] && [ -f /usr/share/mmdvmhost/$name.ini.example ]; then
+		cp /usr/share/mmdvmhost/$name.ini.example /etc/mmdvmhost/$name.ini
+		echo "Created /etc/mmdvmhost/$name.ini from template - edit it to match your setup"
 	fi
+done
+
+# The MMDVM_HS RSSI mapping is the default; keep any existing RSSI.dat
+if [ ! -f /etc/mmdvmhost/RSSI.dat ] && [ -f /usr/share/mmdvmhost/RSSI_MMDVM_HS.dat ]; then
+	cp /usr/share/mmdvmhost/RSSI_MMDVM_HS.dat /etc/mmdvmhost/RSSI.dat
 fi
 
 exit 0

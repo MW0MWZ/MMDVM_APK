@@ -27,7 +27,7 @@ start_pre() {
 	# Check if configuration exists
 	if [ ! -f "${DMR2NXDN_CONFIG}" ]; then
 		eerror "DMR2NXDN configuration file ${DMR2NXDN_CONFIG} does not exist"
-		eerror "Please create it from: cp /etc/dmrclients/DMR2NXDN.ini.example ${DMR2NXDN_CONFIG}"
+		eerror "Please create it from the template: cp /usr/share/dmrclients/DMR2NXDN.ini.example ${DMR2NXDN_CONFIG}"
 		return 1
 	fi
 	

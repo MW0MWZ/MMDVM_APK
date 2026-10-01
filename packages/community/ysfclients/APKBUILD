@@ -162,16 +162,12 @@ package() {
 			install -Dm755 YSFGateway "$pkgdir"/usr/bin/YSFGateway
 		fi
 		
-		# Install configuration sample to /usr/share
+		# Install configuration template to /usr/share (package-owned)
 		if [ -f YSFGateway.ini ]; then
-			install -Dm644 YSFGateway.ini "$pkgdir"/usr/share/ysfclients/YSFGateway.ini.sample
+			install -Dm644 YSFGateway.ini "$pkgdir"/usr/share/ysfclients/YSFGateway.ini.example
 		fi
 		
-		# Also install configuration example to /etc
 		install -dm755 "$pkgdir"/etc/ysfclients
-		if [ -f YSFGateway.ini ]; then
-			install -Dm644 YSFGateway.ini "$pkgdir"/etc/ysfclients/YSFGateway.ini.example
-		fi
 		
 		# Install audio files if they exist
 		if [ -d "Audio" ] || [ -d "audio" ]; then
@@ -191,15 +187,11 @@ package() {
 			install -Dm755 YSFParrot "$pkgdir"/usr/bin/YSFParrot
 		fi
 		
-		# Install configuration sample to /usr/share
+		# Install configuration template to /usr/share (package-owned)
 		if [ -f YSFParrot.ini ]; then
-			install -Dm644 YSFParrot.ini "$pkgdir"/usr/share/ysfclients/YSFParrot.ini.sample
+			install -Dm644 YSFParrot.ini "$pkgdir"/usr/share/ysfclients/YSFParrot.ini.example
 		fi
 		
-		# Also install configuration example to /etc
-		if [ -f YSFParrot.ini ]; then
-			install -Dm644 YSFParrot.ini "$pkgdir"/etc/ysfclients/YSFParrot.ini.example
-		fi
 		
 		cd ..
 	fi
@@ -213,15 +205,11 @@ package() {
 			install -Dm755 DGIdGateway "$pkgdir"/usr/bin/DGIdGateway
 		fi
 		
-		# Install configuration sample to /usr/share
+		# Install configuration template to /usr/share (package-owned)
 		if [ -f DGIdGateway.ini ]; then
-			install -Dm644 DGIdGateway.ini "$pkgdir"/usr/share/ysfclients/DGIdGateway.ini.sample
+			install -Dm644 DGIdGateway.ini "$pkgdir"/usr/share/ysfclients/DGIdGateway.ini.example
 		fi
 		
-		# Also install configuration example to /etc
-		if [ -f DGIdGateway.ini ]; then
-			install -Dm644 DGIdGateway.ini "$pkgdir"/etc/ysfclients/DGIdGateway.ini.example
-		fi
 		
 		cd ..
 	fi
@@ -238,15 +226,11 @@ package() {
 			install -Dm755 YSF2DMR "$pkgdir"/usr/bin/YSF2DMR
 		fi
 		
-		# Install configuration sample to /usr/share
+		# Install configuration template to /usr/share (package-owned)
 		if [ -f YSF2DMR.ini ]; then
-			install -Dm644 YSF2DMR.ini "$pkgdir"/usr/share/ysfclients/YSF2DMR.ini.sample
+			install -Dm644 YSF2DMR.ini "$pkgdir"/usr/share/ysfclients/YSF2DMR.ini.example
 		fi
 		
-		# Also install configuration example to /etc
-		if [ -f YSF2DMR.ini ]; then
-			install -Dm644 YSF2DMR.ini "$pkgdir"/etc/ysfclients/YSF2DMR.ini.example
-		fi
 		
 		# Install DMR ID lookup file if present
 		for dmrid_file in DMRIds.dat DMRIds.csv; do
@@ -267,15 +251,11 @@ package() {
 			install -Dm755 YSF2NXDN "$pkgdir"/usr/bin/YSF2NXDN
 		fi
 		
-		# Install configuration sample to /usr/share
+		# Install configuration template to /usr/share (package-owned)
 		if [ -f YSF2NXDN.ini ]; then
-			install -Dm644 YSF2NXDN.ini "$pkgdir"/usr/share/ysfclients/YSF2NXDN.ini.sample
+			install -Dm644 YSF2NXDN.ini "$pkgdir"/usr/share/ysfclients/YSF2NXDN.ini.example
 		fi
 		
-		# Also install configuration example to /etc
-		if [ -f YSF2NXDN.ini ]; then
-			install -Dm644 YSF2NXDN.ini "$pkgdir"/etc/ysfclients/YSF2NXDN.ini.example
-		fi
 		
 		# Install NXDN ID lookup file if present
 		for nxdn_file in NXDNIds.dat NXDNIds.csv NXDN.csv; do
@@ -296,15 +276,11 @@ package() {
 			install -Dm755 YSF2P25 "$pkgdir"/usr/bin/YSF2P25
 		fi
 		
-		# Install configuration sample to /usr/share
+		# Install configuration template to /usr/share (package-owned)
 		if [ -f YSF2P25.ini ]; then
-			install -Dm644 YSF2P25.ini "$pkgdir"/usr/share/ysfclients/YSF2P25.ini.sample
+			install -Dm644 YSF2P25.ini "$pkgdir"/usr/share/ysfclients/YSF2P25.ini.example
 		fi
 		
-		# Also install configuration example to /etc
-		if [ -f YSF2P25.ini ]; then
-			install -Dm644 YSF2P25.ini "$pkgdir"/etc/ysfclients/YSF2P25.ini.example
-		fi
 		
 		# Install P25 ID lookup file if present
 		for p25_file in P25Ids.dat P25Ids.csv P25.csv; do

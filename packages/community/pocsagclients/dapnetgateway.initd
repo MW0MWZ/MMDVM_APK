@@ -27,7 +27,7 @@ start_pre() {
 	# Check if configuration exists
 	if [ ! -f "${DAPNETGATEWAY_CONFIG}" ]; then
 		eerror "Configuration file ${DAPNETGATEWAY_CONFIG} does not exist"
-		eerror "Please create it from the example: cp /etc/pocsagclients/DAPNETGateway.ini.example ${DAPNETGATEWAY_CONFIG}"
+		eerror "Please create it from the template: cp /usr/share/pocsagclients/DAPNETGateway.ini.example ${DAPNETGATEWAY_CONFIG}"
 		return 1
 	fi
 	

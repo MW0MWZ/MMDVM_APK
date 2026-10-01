@@ -1,7 +1,7 @@
-# Configuration for DisplayDriver service
+# Configuration for MMDVM-Display service
 
 # Configuration file location
-# DISPLAYDRIVER_CONFIG="/etc/mmdvmhost/DisplayDriver.ini"
+# DISPLAYDRIVER_CONFIG="/etc/mmdvmhost/MMDVM-Display.ini"
 
 # User and group to run as
 # DISPLAYDRIVER_USER="mmdvm"

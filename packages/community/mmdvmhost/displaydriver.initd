@@ -1,30 +1,30 @@
 #!/sbin/openrc-run
-# OpenRC init script for DisplayDriver
+# OpenRC init script for MMDVM-Display
 
-name="DisplayDriver"
+name="MMDVM-Display"
 description="MMDVM Display Driver for OLED, HD44780, Nextion and LCDproc displays"
 
 # Configuration
-: ${DISPLAYDRIVER_CONFIG:="/etc/mmdvmhost/DisplayDriver.ini"}
+: ${DISPLAYDRIVER_CONFIG:="/etc/mmdvmhost/MMDVM-Display.ini"}
 : ${DISPLAYDRIVER_USER:="mmdvm"}
 : ${DISPLAYDRIVER_GROUP:="mmdvm"}
 : ${DISPLAYDRIVER_LOGFILE:="/var/log/mmdvmhost/displaydriver.log"}
 
-command="/usr/bin/DisplayDriver"
+command="/usr/bin/MMDVM-Display"
 command_args="${DISPLAYDRIVER_CONFIG}"
 pidfile="/run/${RC_SVCNAME}.pid"
 
 depend() {
 	need net
 	after mmdvmhost
-	use logger
+	use logger mmdvminfo
 }
 
 start_pre() {
 	# Check if configuration exists
 	if [ ! -f "${DISPLAYDRIVER_CONFIG}" ]; then
 		eerror "Configuration file ${DISPLAYDRIVER_CONFIG} does not exist"
-		eerror "Please create it from the example: cp /etc/mmdvmhost/DisplayDriver.ini.example ${DISPLAYDRIVER_CONFIG}"
+		eerror "Please create it from the template: cp /usr/share/mmdvmhost/MMDVM-Display.ini.example ${DISPLAYDRIVER_CONFIG}"
 		return 1
 	fi
 
@@ -87,7 +87,7 @@ stop() {
 	fi
 
 	# Also try to stop by process name as fallback
-	pkill -f "^/usr/bin/DisplayDriver ${DISPLAYDRIVER_CONFIG}" 2>/dev/null || true
+	pkill -f "^/usr/bin/MMDVM-Display ${DISPLAYDRIVER_CONFIG}" 2>/dev/null || true
 
 	eend 0
 }
@@ -104,7 +104,7 @@ status() {
 		fi
 	else
 		# Check if process is running without pidfile
-		if pgrep -f "^/usr/bin/DisplayDriver" >/dev/null 2>&1; then
+		if pgrep -f "^/usr/bin/MMDVM-Display" >/dev/null 2>&1; then
 			ewarn "${name} is running but no pidfile found"
 			return 0
 		else

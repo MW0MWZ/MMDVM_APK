@@ -6,8 +6,8 @@ pkgver=2025.01.01
 pkgrel=0
 # Git commit will be captured during build
 _gitcommit="652e229"
-pkgdesc="MMDVM Host Software and Calibration Tool for Digital Amateur Radio"
-url="https://github.com/g4klx/MMDVMHost"
+pkgdesc="MMDVM-Host, MMDVM-Display and MMDVMCal for Digital Amateur Radio"
+url="https://github.com/g4klx/MMDVM-Host"
 arch="x86_64 armhf aarch64"
 license="GPL-2.0-or-later"
 makedepends="
@@ -25,7 +25,7 @@ depends="
 	mosquitto-libs
 	"
 
-# Architecture-specific dependencies for Display-Driver (OLED, HD44780)
+# Architecture-specific dependencies for MMDVM-Display (OLED, HD44780)
 case "$CARCH" in
 	armhf|aarch64)
 		makedepends="$makedepends wiringpi-dev i2c-tools-dev"
@@ -33,31 +33,31 @@ case "$CARCH" in
 		;;
 esac
 subpackages="$pkgname-doc $pkgname-openrc"
-install="$pkgname.post-install"
+install="$pkgname.post-install $pkgname.post-upgrade"
 source=""
 options="!check"  # No test suite
-giturl="https://github.com/g4klx/MMDVMHost.git"
+giturl="https://github.com/g4klx/MMDVM-Host.git"
 giturl_cal="https://github.com/g4klx/MMDVMCal.git"
-giturl_displaydriver="https://github.com/g4klx/Display-Driver.git"
+giturl_display="https://github.com/g4klx/MMDVM-Display.git"
 giturl_oled="https://github.com/MW0MWZ/ArduiPi_OLED.git"
 
 # We'll clone the git repo in prepare() instead of using source
 prepare() {
 	# Clean any existing source
-	rm -rf "$srcdir/MMDVMHost"
+	rm -rf "$srcdir/MMDVM-Host"
 	rm -rf "$srcdir/MMDVMCal"
-	rm -rf "$srcdir/Display-Driver"
+	rm -rf "$srcdir/MMDVM-Display"
 	rm -rf "$srcdir/ArduiPi_OLED"
 	rm -rf "$srcdir/oled-install"
 
-	# Clone the MMDVMHost repository
-	msg "Cloning MMDVMHost from $giturl"
-	git clone "$giturl" "$srcdir/MMDVMHost"
-	cd "$srcdir/MMDVMHost"
+	# Clone the MMDVM-Host repository
+	msg "Cloning MMDVM-Host from $giturl"
+	git clone "$giturl" "$srcdir/MMDVM-Host"
+	cd "$srcdir/MMDVM-Host"
 
 	# Get the version info that will be embedded in the binary
 	local git_version=$(git describe --tags --always)
-	msg "MMDVMHost git version: $git_version"
+	msg "MMDVM-Host git version: $git_version"
 
 	# Clone the MMDVMCal repository
 	msg "Cloning MMDVMCal from $giturl_cal"
@@ -67,15 +67,15 @@ prepare() {
 	local git_version_cal=$(git describe --tags --always)
 	msg "MMDVMCal git version: $git_version_cal"
 
-	# Clone the Display-Driver repository (all architectures)
-	msg "Cloning Display-Driver from $giturl_displaydriver"
-	git clone "$giturl_displaydriver" "$srcdir/Display-Driver"
-	cd "$srcdir/Display-Driver"
+	# Clone the MMDVM-Display repository (all architectures)
+	msg "Cloning MMDVM-Display from $giturl_display"
+	git clone "$giturl_display" "$srcdir/MMDVM-Display"
+	cd "$srcdir/MMDVM-Display"
 
-	local git_version_dd=$(git describe --tags --always)
-	msg "Display-Driver git version: $git_version_dd"
+	local git_version_display=$(git describe --tags --always)
+	msg "MMDVM-Display git version: $git_version_display"
 
-	# Clone ArduiPi_OLED library (ARM only, needed for Display-Driver OLED support)
+	# Clone ArduiPi_OLED library (ARM only, needed for MMDVM-Display OLED support)
 	case "$CARCH" in
 		armhf|aarch64)
 			msg "Cloning ArduiPi_OLED from $giturl_oled"
@@ -93,14 +93,14 @@ prepare() {
 }
 
 build() {
-	# Build MMDVMHost
-	cd "$srcdir/MMDVMHost"
+	# Build MMDVM-Host
+	cd "$srcdir/MMDVM-Host"
 
 	# Clean previous builds
 	make clean
 
 	# Build with standard Makefile for all architectures
-	msg "Building MMDVMHost"
+	msg "Building MMDVM-Host"
 	make \
 		CFLAGS="$CFLAGS" \
 		CXXFLAGS="$CXXFLAGS" \
@@ -136,22 +136,22 @@ build() {
 				PREFIX="$srcdir/oled-install" \
 				-j1
 
-			# Export paths so Display-Driver can find the library
+			# Export paths so MMDVM-Display can find the library
 			export LIBRARY_PATH="$srcdir/oled-install/lib:$LIBRARY_PATH"
 			export CPATH="$srcdir/oled-install/include:$CPATH"
 			export LD_LIBRARY_PATH="$srcdir/oled-install/lib:$LD_LIBRARY_PATH"
 			;;
 	esac
 
-	# Build Display-Driver
-	cd "$srcdir/Display-Driver"
+	# Build MMDVM-Display
+	cd "$srcdir/MMDVM-Display"
 
 	make clean
 
 	case "$CARCH" in
 		armhf|aarch64)
 			# ARM: Enable OLED, HD44780, and PCF8574 display support
-			msg "Building Display-Driver with OLED/HD44780 support"
+			msg "Building MMDVM-Display with OLED/HD44780 support"
 			make \
 				CFLAGS="$CFLAGS -DUSE_OLED -DUSE_HD44780 -DUSE_PCF8574_DISPLAY -I$srcdir/oled-install/include" \
 				LIBS="-lwiringPi -lwiringPiDev -lArduiPi_OLED -li2c -lpthread -lutil -lmosquitto -L$srcdir/oled-install/lib" \
@@ -159,7 +159,7 @@ build() {
 				-j $(nproc)
 			;;
 		*)
-			msg "Building Display-Driver"
+			msg "Building MMDVM-Display"
 			make \
 				CFLAGS="$CFLAGS" \
 				LDFLAGS="$LDFLAGS" \
@@ -169,22 +169,15 @@ build() {
 }
 
 package() {
-	# Install MMDVMHost binaries
-	cd "$srcdir/MMDVMHost"
+	# Package-owned files (binaries, config templates, default data) go
+	# under /usr; /etc/mmdvmhost/ is created empty and holds only user
+	# configuration, so a persisted /etc never hides newer templates.
+	install -dm755 "$pkgdir"/etc/mmdvmhost
 
-	# Install the main binary
-	install -Dm755 MMDVMHost "$pkgdir"/usr/bin/MMDVMHost
-
-	# Install the RemoteCommand utility if it exists
-	if [ -f RemoteCommand ]; then
-		install -Dm755 RemoteCommand "$pkgdir"/usr/bin/MMDVMRemoteCommand
-	fi
-
-	# Install configuration sample to /usr/share
-	install -Dm644 MMDVMHost.ini "$pkgdir"/usr/share/mmdvmhost/MMDVMHost.ini.sample
-
-	# Also install a copy to /etc for actual use
-	install -Dm644 MMDVMHost.ini "$pkgdir"/etc/mmdvmhost/MMDVMHost.ini.example
+	# Install MMDVM-Host
+	cd "$srcdir/MMDVM-Host"
+	install -Dm755 MMDVM-Host "$pkgdir"/usr/bin/MMDVM-Host
+	install -Dm644 MMDVM-Host.ini "$pkgdir"/usr/share/mmdvmhost/MMDVM-Host.ini.example
 
 	# Install RSSI data files from upstream
 	if [ -f RSSI.dat ]; then
@@ -199,22 +192,18 @@ package() {
 
 	# Install MMDVM_HS default RSSI data
 	install -Dm644 "$startdir"/RSSI_MMDVM_HS.dat "$pkgdir"/usr/share/mmdvmhost/RSSI_MMDVM_HS.dat
-	install -Dm644 "$startdir"/RSSI_MMDVM_HS.dat "$pkgdir"/etc/mmdvmhost/RSSI.dat
 
 	# Install MMDVMCal binary
 	cd "$srcdir/MMDVMCal"
 	install -Dm755 MMDVMCal "$pkgdir"/usr/bin/MMDVMCal
 
-	# Install Display-Driver binaries
-	cd "$srcdir/Display-Driver"
-	install -Dm755 DisplayDriver "$pkgdir"/usr/bin/DisplayDriver
+	# Install MMDVM-Display
+	cd "$srcdir/MMDVM-Display"
+	install -Dm755 MMDVM-Display "$pkgdir"/usr/bin/MMDVM-Display
 	if [ -f NextionUpdater ]; then
 		install -Dm755 NextionUpdater "$pkgdir"/usr/bin/NextionUpdater
 	fi
-
-	# Install Display-Driver configuration
-	install -Dm644 DisplayDriver.ini "$pkgdir"/usr/share/mmdvmhost/DisplayDriver.ini.sample
-	install -Dm644 DisplayDriver.ini "$pkgdir"/etc/mmdvmhost/DisplayDriver.ini.example
+	install -Dm644 MMDVM-Display.ini "$pkgdir"/usr/share/mmdvmhost/MMDVM-Display.ini.example
 
 	# Install ArduiPi_OLED shared library (ARM only)
 	case "$CARCH" in
@@ -232,7 +221,7 @@ package() {
 	esac
 
 	# Install documentation from all projects
-	cd "$srcdir/MMDVMHost"
+	cd "$srcdir/MMDVM-Host"
 
 	# Install systemd service file if it exists (for reference)
 	if [ -f linux/systemd/mmdvmhost.service ]; then
@@ -242,7 +231,7 @@ package() {
 
 	# Install README files
 	if [ -f README.md ]; then
-		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README-MMDVMHost.md
+		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README-MMDVM-Host.md
 	fi
 
 	cd "$srcdir/MMDVMCal"
@@ -250,14 +239,14 @@ package() {
 		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README-MMDVMCal.md
 	fi
 
-	cd "$srcdir/Display-Driver"
+	cd "$srcdir/MMDVM-Display"
 	if [ -f README.md ]; then
-		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README-DisplayDriver.md
+		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README-MMDVM-Display.md
 	fi
 
 	# Look for license file
 	mkdir -p "$pkgdir"/usr/share/licenses/$pkgname
-	cd "$srcdir/MMDVMHost"
+	cd "$srcdir/MMDVM-Host"
 	if [ -f LICENSE ]; then
 		install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
 	elif [ -f COPYING ]; then

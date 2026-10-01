@@ -66,12 +66,10 @@ package() {
 	# Install the main binary
 	install -Dm755 APRSGateway "$pkgdir"/usr/bin/APRSGateway
 	
-	# Install configuration sample to /usr/share
-	install -Dm644 APRSGateway.ini "$pkgdir"/usr/share/aprsclients/APRSGateway.ini.sample
+	# Install configuration template to /usr/share (package-owned)
+	install -Dm644 APRSGateway.ini "$pkgdir"/usr/share/aprsclients/APRSGateway.ini.example
 	
-	# Also install a copy to /etc for actual use
 	install -dm755 "$pkgdir"/etc/aprsclients
-	install -Dm644 APRSGateway.ini "$pkgdir"/etc/aprsclients/APRSGateway.ini.example
 	
 	# Install audio files if they exist
 	if [ -d "Audio" ] || [ -d "audio" ]; then

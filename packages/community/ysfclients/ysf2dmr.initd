@@ -27,7 +27,7 @@ start_pre() {
 	# Check if configuration exists
 	if [ ! -f "${YSF2DMR_CONFIG}" ]; then
 		eerror "YSF2DMR configuration file ${YSF2DMR_CONFIG} does not exist"
-		eerror "Please create it from: cp /etc/ysfclients/YSF2DMR.ini.example ${YSF2DMR_CONFIG}"
+		eerror "Please create it from the template: cp /usr/share/ysfclients/YSF2DMR.ini.example ${YSF2DMR_CONFIG}"
 		return 1
 	fi
 	

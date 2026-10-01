@@ -17,7 +17,7 @@ get_github_commit() {
     
     # Try to get latest commit from default branch
     for branch in main master develop; do
-        commit=$(curl -s -H "Accept: application/vnd.github.v3+json" \
+        commit=$(curl -sL -H "Accept: application/vnd.github.v3+json" \
             ${GITHUB_TOKEN:+-H "Authorization: token $GITHUB_TOKEN"} \
             "https://api.github.com/repos/${repo}/commits/${branch}" 2>/dev/null | \
             grep '"sha"' | head -1 | cut -d'"' -f4 | cut -c1-7)

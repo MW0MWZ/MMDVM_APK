@@ -27,7 +27,7 @@ start_pre() {
 	# Check if configuration exists
 	if [ ! -f "${YSF2P25_CONFIG}" ]; then
 		eerror "YSF2P25 configuration file ${YSF2P25_CONFIG} does not exist"
-		eerror "Please create it from: cp /etc/ysfclients/YSF2P25.ini.example ${YSF2P25_CONFIG}"
+		eerror "Please create it from the template: cp /usr/share/ysfclients/YSF2P25.ini.example ${YSF2P25_CONFIG}"
 		return 1
 	fi
 	

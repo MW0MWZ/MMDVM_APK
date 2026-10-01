@@ -61,13 +61,14 @@ sed -i "s/^pkgver=.*/pkgver=${PKG_VERSION}/" "$TEMP_APKBUILD"
 sed -i "s/^pkgrel=.*/pkgrel=${PKG_RELEASE}/" "$TEMP_APKBUILD"
 sed -i "s/^_gitcommit=.*/_gitcommit=\"${GIT_COMMIT}\"/" "$TEMP_APKBUILD"
 
-# Copy OpenRC files if they exist
-if [ -f "$PACKAGE_DIR/mmdvmhost.initd" ]; then
-    cp "$PACKAGE_DIR/mmdvmhost.initd" "$TEMP_DIR/"
-fi
-if [ -f "$PACKAGE_DIR/mmdvmhost.confd" ]; then
-    cp "$PACKAGE_DIR/mmdvmhost.confd" "$TEMP_DIR/"
-fi
+# Copy supporting files (OpenRC, install scripts, data, patches) as CI does
+for file in "$PACKAGE_DIR"/*.initd "$PACKAGE_DIR"/*.confd \
+            "$PACKAGE_DIR"/*.pre-install "$PACKAGE_DIR"/*.post-install \
+            "$PACKAGE_DIR"/*.pre-upgrade "$PACKAGE_DIR"/*.post-upgrade \
+            "$PACKAGE_DIR"/*.pre-deinstall "$PACKAGE_DIR"/*.post-deinstall \
+            "$PACKAGE_DIR"/*.dat "$PACKAGE_DIR"/*.patch; do
+    [ -f "$file" ] && cp "$file" "$TEMP_DIR/"
+done
 
 # Create build script for Docker
 cat > "$TEMP_DIR/docker-build.sh" << 'EOSCRIPT'

@@ -27,7 +27,7 @@ start_pre() {
 	# Check if configuration exists
 	if [ ! -f "${NXDNPARROT_CONFIG}" ]; then
 		eerror "NXDNParrot configuration file ${NXDNPARROT_CONFIG} does not exist"
-		eerror "Please create it from: cp /etc/nxdnclients/NXDNParrot.ini.example ${NXDNPARROT_CONFIG}"
+		eerror "Please create it from the template: cp /usr/share/nxdnclients/NXDNParrot.ini.example ${NXDNPARROT_CONFIG}"
 		return 1
 	fi
 	

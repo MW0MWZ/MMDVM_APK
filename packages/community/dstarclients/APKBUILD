@@ -22,6 +22,7 @@ depends="
 	mosquitto-libs
 	"
 subpackages="$pkgname-doc $pkgname-openrc"
+install="$pkgname.post-install $pkgname.post-upgrade"
 source=""
 options="!check" # No test suite
 giturl="https://github.com/g4klx/DStarGateway.git"
@@ -103,21 +104,20 @@ package() {
 		install -Dm755 "DGWVoiceTransmit/dgwvoicetransmit" "$pkgdir/usr/bin/dgwvoicetransmit"
 	fi
 
-	# Install DStarGateway configuration files
+	# Install the DStarGateway configuration template to /usr/share
+	# (package-owned); /etc/dstarclients/ holds only user configuration.
+	local template="$pkgdir/usr/share/dstarclients/DStarGateway.ini.example"
 	if [ -f "DStarGateway/DStarGateway.ini" ]; then
-		install -Dm644 "DStarGateway/DStarGateway.ini" "$pkgdir/etc/dstarclients/DStarGateway.ini.example"
+		install -Dm644 "DStarGateway/DStarGateway.ini" "$template"
 	elif [ -f "DStarGateway.ini" ]; then
-		install -Dm644 "DStarGateway.ini" "$pkgdir/etc/dstarclients/DStarGateway.ini.example"
+		install -Dm644 "DStarGateway.ini" "$template"
 	fi
 
-	# Patch default paths and user in the example config
-	if [ -f "$pkgdir/etc/dstarclients/DStarGateway.ini.example" ]; then
-		sed -i 's|^Data=.*|Data=/usr/share/dstarclients/|' \
-			"$pkgdir/etc/dstarclients/DStarGateway.ini.example"
-		sed -i 's|^HostsFiles=.*|HostsFiles=/etc/dstarclients/|' \
-			"$pkgdir/etc/dstarclients/DStarGateway.ini.example"
-		sed -i 's|^User=.*|User=mmdvm|' \
-			"$pkgdir/etc/dstarclients/DStarGateway.ini.example"
+	# Patch default paths and user in the template
+	if [ -f "$template" ]; then
+		sed -i 's|^Data=.*|Data=/usr/share/dstarclients/|' "$template"
+		sed -i 's|^HostsFiles=.*|HostsFiles=/etc/dstarclients/|' "$template"
+		sed -i 's|^User=.*|User=mmdvm|' "$template"
 	fi
 
 	# Install data files from Data directory (voice/audio files only, not host .txt files)
@@ -131,10 +131,12 @@ package() {
 		cd ..
 	fi
 
-	# Download current host data from pistar.uk to /etc/dstarclients
+	# Ship a snapshot of the host data as a package default. It is copied
+	# into /etc/dstarclients/ on install (and by Pi-Star MCP at startup) if
+	# missing, then kept current by the host file updater.
 	install -dm755 "$pkgdir/etc/dstarclients"
 	msg "Downloading DStar_Hosts.json from pistar.uk"
-	wget -q -O "$pkgdir/etc/dstarclients/DStar_Hosts.json" \
+	wget -q -O "$pkgdir/usr/share/dstarclients/DStar_Hosts.json" \
 		"https://www.pistar.uk/downloads/DStar_Hosts.json"
 
 	# Install documentation

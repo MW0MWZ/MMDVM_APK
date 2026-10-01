@@ -33,7 +33,7 @@ start_pre() {
 	if yesno "$ENABLE_YSFGATEWAY"; then
 		if [ ! -f "${YSFGATEWAY_CONFIG}" ]; then
 			eerror "YSFGateway configuration file ${YSFGATEWAY_CONFIG} does not exist"
-			eerror "Please create it from: cp /etc/ysfclients/YSFGateway.ini.example ${YSFGATEWAY_CONFIG}"
+			eerror "Please create it from the template: cp /usr/share/ysfclients/YSFGateway.ini.example ${YSFGATEWAY_CONFIG}"
 			errors=$((errors + 1))
 		fi
 	fi
@@ -42,7 +42,7 @@ start_pre() {
 	if yesno "$ENABLE_YSFPARROT"; then
 		if [ ! -f "${YSFPARROT_CONFIG}" ]; then
 			eerror "YSFParrot configuration file ${YSFPARROT_CONFIG} does not exist"
-			eerror "Please create it from: cp /etc/ysfclients/YSFParrot.ini.example ${YSFPARROT_CONFIG}"
+			eerror "Please create it from the template: cp /usr/share/ysfclients/YSFParrot.ini.example ${YSFPARROT_CONFIG}"
 			errors=$((errors + 1))
 		fi
 	fi

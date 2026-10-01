@@ -27,7 +27,7 @@ start_pre() {
 	# Check if configuration exists
 	if [ ! -f "${YSF2NXDN_CONFIG}" ]; then
 		eerror "YSF2NXDN configuration file ${YSF2NXDN_CONFIG} does not exist"
-		eerror "Please create it from: cp /etc/ysfclients/YSF2NXDN.ini.example ${YSF2NXDN_CONFIG}"
+		eerror "Please create it from the template: cp /usr/share/ysfclients/YSF2NXDN.ini.example ${YSF2NXDN_CONFIG}"
 		return 1
 	fi
 	

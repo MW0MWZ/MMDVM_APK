@@ -111,16 +111,12 @@ package() {
 		install -Dm755 DMRGateway "$pkgdir"/usr/bin/DMRGateway
 	fi
 	
-	# Install configuration sample to /usr/share
+	# Install configuration template to /usr/share (package-owned)
 	if [ -f DMRGateway.ini ]; then
-		install -Dm644 DMRGateway.ini "$pkgdir"/usr/share/dmrclients/DMRGateway.ini.sample
+		install -Dm644 DMRGateway.ini "$pkgdir"/usr/share/dmrclients/DMRGateway.ini.example
 	fi
 	
-	# Also install configuration example to /etc
 	install -dm755 "$pkgdir"/etc/dmrclients
-	if [ -f DMRGateway.ini ]; then
-		install -Dm644 DMRGateway.ini "$pkgdir"/etc/dmrclients/DMRGateway.ini.example
-	fi
 	
 	# Install XLXHosts.txt and other data files
 	for datafile in XLXHosts.txt DMR_Audio Audio; do
@@ -144,15 +140,11 @@ package() {
 			install -Dm755 DMR2YSF "$pkgdir"/usr/bin/DMR2YSF
 		fi
 		
-		# Install configuration sample to /usr/share
+		# Install configuration template to /usr/share (package-owned)
 		if [ -f DMR2YSF.ini ]; then
-			install -Dm644 DMR2YSF.ini "$pkgdir"/usr/share/dmrclients/DMR2YSF.ini.sample
+			install -Dm644 DMR2YSF.ini "$pkgdir"/usr/share/dmrclients/DMR2YSF.ini.example
 		fi
 		
-		# Also install configuration example to /etc
-		if [ -f DMR2YSF.ini ]; then
-			install -Dm644 DMR2YSF.ini "$pkgdir"/etc/dmrclients/DMR2YSF.ini.example
-		fi
 		
 		# Install DMR ID lookup file if present
 		for dmrid_file in DMRIds.dat DMRIds.csv; do
@@ -173,15 +165,11 @@ package() {
 			install -Dm755 DMR2NXDN "$pkgdir"/usr/bin/DMR2NXDN
 		fi
 		
-		# Install configuration sample to /usr/share
+		# Install configuration template to /usr/share (package-owned)
 		if [ -f DMR2NXDN.ini ]; then
-			install -Dm644 DMR2NXDN.ini "$pkgdir"/usr/share/dmrclients/DMR2NXDN.ini.sample
+			install -Dm644 DMR2NXDN.ini "$pkgdir"/usr/share/dmrclients/DMR2NXDN.ini.example
 		fi
 		
-		# Also install configuration example to /etc
-		if [ -f DMR2NXDN.ini ]; then
-			install -Dm644 DMR2NXDN.ini "$pkgdir"/etc/dmrclients/DMR2NXDN.ini.example
-		fi
 		
 		# Install ID lookup files if present
 		for id_file in DMRIds.dat DMRIds.csv NXDNIds.dat NXDNIds.csv NXDN.csv; do

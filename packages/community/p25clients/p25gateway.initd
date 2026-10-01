@@ -33,7 +33,7 @@ start_pre() {
 	if yesno "$ENABLE_P25GATEWAY"; then
 		if [ ! -f "${P25GATEWAY_CONFIG}" ]; then
 			eerror "P25Gateway configuration file ${P25GATEWAY_CONFIG} does not exist"
-			eerror "Please create it from: cp /etc/p25clients/P25Gateway.ini.example ${P25GATEWAY_CONFIG}"
+			eerror "Please create it from the template: cp /usr/share/p25clients/P25Gateway.ini.example ${P25GATEWAY_CONFIG}"
 			errors=$((errors + 1))
 		fi
 	fi
@@ -42,7 +42,7 @@ start_pre() {
 	if yesno "$ENABLE_P25PARROT"; then
 		if [ ! -f "${P25PARROT_CONFIG}" ]; then
 			eerror "P25Parrot configuration file ${P25PARROT_CONFIG} does not exist"
-			eerror "Please create it from: cp /etc/p25clients/P25Parrot.ini.example ${P25PARROT_CONFIG}"
+			eerror "Please create it from the template: cp /usr/share/p25clients/P25Parrot.ini.example ${P25PARROT_CONFIG}"
 			errors=$((errors + 1))
 		fi
 	fi

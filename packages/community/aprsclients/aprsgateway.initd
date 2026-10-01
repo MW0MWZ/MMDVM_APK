@@ -27,7 +27,7 @@ start_pre() {
 	# Check if configuration exists
 	if [ ! -f "${APRSGATEWAY_CONFIG}" ]; then
 		eerror "Configuration file ${APRSGATEWAY_CONFIG} does not exist"
-		eerror "Please create it from the example: cp /etc/aprsclients/APRSGateway.ini.example ${APRSGATEWAY_CONFIG}"
+		eerror "Please create it from the template: cp /usr/share/aprsclients/APRSGateway.ini.example ${APRSGATEWAY_CONFIG}"
 		return 1
 	fi
 	

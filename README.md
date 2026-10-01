@@ -15,7 +15,8 @@ Alpine Linux package repository for Ham Radio software, hosted on GitHub Pages.
 
 | Package | Description | Components | Upstream |
 |---------|-------------|------------|----------|
-| **mmdvmhost** | MMDVM Host Software & Calibration Tool | MMDVMHost, MMDVMCal, RemoteCommand | [MMDVMHost](https://github.com/g4klx/MMDVMHost) & [MMDVMCal](https://github.com/g4klx/MMDVMCal) |
+| **mmdvmhost** | MMDVM host, display driver & calibration tool | MMDVM-Host, MMDVM-Display, NextionUpdater, MMDVMCal | [MMDVM-Host](https://github.com/g4klx/MMDVM-Host), [MMDVM-Display](https://github.com/g4klx/MMDVM-Display) & [MMDVMCal](https://github.com/g4klx/MMDVMCal) |
+| **mmdvminfo** | Configuration, network and system information over MQTT (used by MMDVM-Display) | MMDVM-Info | [MMDVM-Info](https://github.com/g4klx/MMDVM-Info) |
 
 ### Repeater Software
 
@@ -64,7 +65,7 @@ wget -O /etc/apk/keys/hamradio.rsa.pub https://apk.pistar.uk/hamradio.rsa.pub
 apk update
 
 # Install all packages
-apk add mmdvmhost aprsclients dmrclients dstarclients dstarrepeater \
+apk add mmdvmhost mmdvminfo aprsclients dmrclients dstarclients dstarrepeater \
         fmclients nxdnclients p25clients pocsagclients ysfclients
 
 # Or install specific packages
@@ -78,14 +79,17 @@ apk add dstarclients       # D-Star Gateway clients
 All packages include OpenRC init scripts with logical service names:
 
 ```bash
-# Configure services (configs stored under package directories)
-cp /etc/mmdvmhost/MMDVM.ini.example /etc/mmdvmhost/MMDVM.ini
-cp /etc/dmrclients/DMRGateway.ini.example /etc/dmrclients/DMRGateway.ini
-cp /etc/ysfclients/YSFGateway.ini.example /etc/ysfclients/YSFGateway.ini
-cp /etc/dstarrepeater/dstarrepeater.conf.example /etc/dstarrepeater/dstarrepeater.conf
+# Configure services: templates ship in /usr/share/<package>/, live
+# configuration goes in /etc/<package>/. The mmdvmhost and mmdvminfo
+# packages create their configs from the templates on install.
+cp /usr/share/dmrclients/DMRGateway.ini.example /etc/dmrclients/DMRGateway.ini
+cp /usr/share/ysfclients/YSFGateway.ini.example /etc/ysfclients/YSFGateway.ini
+cp /usr/share/dstarrepeater/dstarrepeater.ini.example /etc/dstarrepeater/dstarrepeater.ini
 
 # Start services
-rc-service mmdvmhost start      # MMDVM Host
+rc-service mmdvmhost start      # MMDVM-Host
+rc-service displaydriver start  # MMDVM-Display
+rc-service mmdvminfo start      # MMDVM-Info
 rc-service dmrgateway start     # DMR Gateway
 rc-service ysfgateway start     # YSF Gateway + Parrot
 rc-service dgidgateway start    # DGId Gateway
@@ -153,7 +157,8 @@ MMDVM_APK/
 ├── .github/workflows/   # GitHub Actions workflows
 │   └── build-packages.yml
 ├── packages/community/  # Package definitions
-│   ├── mmdvmhost/
+│   ├── mmdvmhost/       # MMDVM-Host, MMDVM-Display, MMDVMCal
+│   ├── mmdvminfo/       # MMDVM-Info
 │   ├── dstarrepeater/   # D-Star Repeater Controller
 │   ├── dmrclients/      # DMRGateway, DMR2YSF, DMR2NXDN
 │   ├── dstarclients/    # DStarGateway and tools
@@ -172,6 +177,21 @@ MMDVM_APK/
 └── index.html           # Repository landing page
 ```
 
+### File Layout
+
+Packages never ship files in `/etc/<package>/` — they create the directory empty. Package-owned files live under `/usr`:
+
+| Path | Contents |
+|------|----------|
+| `/usr/bin/` | Binaries (e.g. `MMDVM-Host`, `MMDVM-Display`, `MMDVM-Info`) |
+| `/usr/share/<package>/*.ini.example` | Configuration templates, replaced on every upgrade |
+| `/usr/share/<package>/` | Default data (RSSI maps, audio, host list snapshots) |
+| `/etc/<package>/` | Live configuration and downloaded host files — yours, never overwritten |
+
+This keeps upgrades from touching user configuration, and lets Pi-Star OS persist `/etc/<package>/` across A/B slot upgrades without hiding newer templates.
+
+Upstream renamed MMDVMHost to MMDVM-Host and Display-Driver to MMDVM-Display in May 2026. On install or upgrade, the `mmdvmhost` package renames `/etc/mmdvmhost/MMDVMHost.ini` (or `MMDVM.ini`) to `MMDVM-Host.ini` and `DisplayDriver.ini` to `MMDVM-Display.ini`. The OpenRC service names (`mmdvmhost`, `displaydriver`) are unchanged.
+
 ### Package Organization
 
 The repository follows a logical grouping structure:
@@ -179,7 +199,7 @@ The repository follows a logical grouping structure:
 - **Protocol-specific clients**: `dmrclients`, `dstarclients`, `ysfclients`, `nxdnclients`, `p25clients`
   - Each contains the main gateway, parrot/test tools, and cross-mode converters where applicable
 - **Repeater controllers**: `dstarrepeater` - Complete D-Star repeater system
-- **Core software**: `mmdvmhost` - The main MMDVM host software
+- **Core software**: `mmdvmhost` - MMDVM-Host, MMDVM-Display and MMDVMCal; `mmdvminfo` - MMDVM-Info
 - **Single-purpose clients**: `aprsclients`, `pocsagclients`, `fmclients`
 
 ### Adding New Packages

@@ -38,7 +38,7 @@ start_pre() {
 	# Check for configuration file
 	if [ ! -f "$DSTAR_CONFIG" ]; then
 		eerror "Configuration file $DSTAR_CONFIG does not exist"
-		eerror "Please create it from: cp /etc/dstarrepeater/dstarrepeater.ini.example $DSTAR_CONFIG"
+		eerror "Please create it from the template: cp /usr/share/dstarrepeater/dstarrepeater.ini.example $DSTAR_CONFIG"
 		return 1
 	fi
 

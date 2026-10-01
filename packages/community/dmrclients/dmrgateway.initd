@@ -27,7 +27,7 @@ start_pre() {
 	# Check if configuration exists
 	if [ ! -f "${DMRGATEWAY_CONFIG}" ]; then
 		eerror "DMRGateway configuration file ${DMRGATEWAY_CONFIG} does not exist"
-		eerror "Please create it from: cp /etc/dmrclients/DMRGateway.ini.example ${DMRGATEWAY_CONFIG}"
+		eerror "Please create it from the template: cp /usr/share/dmrclients/DMRGateway.ini.example ${DMRGATEWAY_CONFIG}"
 		return 1
 	fi
 	

@@ -68,12 +68,10 @@ package() {
 	# Install the main binary
 	install -Dm755 FMGateway "$pkgdir"/usr/bin/FMGateway
 	
-	# Install configuration sample to /usr/share
-	install -Dm644 FMGateway.ini "$pkgdir"/usr/share/fmclients/FMGateway.ini.sample
+	# Install configuration template to /usr/share (package-owned)
+	install -Dm644 FMGateway.ini "$pkgdir"/usr/share/fmclients/FMGateway.ini.example
 	
-	# Also install a copy to /etc for actual use
 	install -dm755 "$pkgdir"/etc/fmclients
-	install -Dm644 FMGateway.ini "$pkgdir"/etc/fmclients/FMGateway.ini.example
 	
 	# Install systemd service file if it exists (for reference)
 	if [ -f linux/systemd/fmgateway.service ]; then

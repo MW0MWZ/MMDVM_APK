@@ -16,6 +16,7 @@ on:
           - dstarrepeater
           - fmclients
           - mmdvmhost
+          - mmdvminfo
           - nxdnclients
           - p25clients
           - pocsagclients

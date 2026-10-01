@@ -27,7 +27,7 @@ start_pre() {
 	# Check if configuration exists
 	if [ ! -f "${DGIDGATEWAY_CONFIG}" ]; then
 		eerror "DGIdGateway configuration file ${DGIDGATEWAY_CONFIG} does not exist"
-		eerror "Please create it from: cp /etc/ysfclients/DGIdGateway.ini.example ${DGIDGATEWAY_CONFIG}"
+		eerror "Please create it from the template: cp /usr/share/ysfclients/DGIdGateway.ini.example ${DGIDGATEWAY_CONFIG}"
 		return 1
 	fi
 	

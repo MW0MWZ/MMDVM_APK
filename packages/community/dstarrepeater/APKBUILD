@@ -85,10 +85,11 @@ package() {
 		cd ..
 	fi
 
-	# Install example config
+	# Install configuration template to /usr/share (package-owned);
+	# /etc/dstarrepeater/ holds only user configuration.
 	if [ -f Data/dstarrepeater.ini.example ]; then
 		install -Dm644 Data/dstarrepeater.ini.example \
-			"$pkgdir"/etc/dstarrepeater/dstarrepeater.ini.example
+			"$pkgdir"/usr/share/dstarrepeater/dstarrepeater.ini.example
 	fi
 
 	# Install documentation

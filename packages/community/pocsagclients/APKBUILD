@@ -66,12 +66,10 @@ package() {
 	# Install the main binary
 	install -Dm755 DAPNETGateway "$pkgdir"/usr/bin/DAPNETGateway
 	
-	# Install configuration sample to /usr/share
-	install -Dm644 DAPNETGateway.ini "$pkgdir"/usr/share/pocsagclients/DAPNETGateway.ini.sample
+	# Install configuration template to /usr/share (package-owned)
+	install -Dm644 DAPNETGateway.ini "$pkgdir"/usr/share/pocsagclients/DAPNETGateway.ini.example
 	
-	# Also install a copy to /etc for actual use
 	install -dm755 "$pkgdir"/etc/pocsagclients
-	install -Dm644 DAPNETGateway.ini "$pkgdir"/etc/pocsagclients/DAPNETGateway.ini.example
 	
 	# Install systemd service file if it exists (for reference)
 	if [ -f linux/systemd/dapnetgateway.service ]; then
