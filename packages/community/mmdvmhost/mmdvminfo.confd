@@ -1,11 +1,11 @@
 # Configuration for MMDVM-Info service
 
 # Configuration file location
-# MMDVMINFO_CONFIG="/etc/mmdvminfo/MMDVM-Info.ini"
+# MMDVMINFO_CONFIG="/etc/mmdvmhost/MMDVM-Info.ini"
 
 # User and group to run as
 # MMDVMINFO_USER="mmdvm"
 # MMDVMINFO_GROUP="mmdvm"
 
 # Log file location
-# MMDVMINFO_LOGFILE="/var/log/mmdvminfo/mmdvminfo.log"
+# MMDVMINFO_LOGFILE="/var/log/mmdvmhost/mmdvminfo.log"

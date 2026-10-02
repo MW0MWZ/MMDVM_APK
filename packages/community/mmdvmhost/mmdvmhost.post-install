@@ -71,7 +71,7 @@ rm -f /etc/mmdvmhost/MMDVMHost.ini.example \
 	/etc/mmdvmhost/DisplayDriver.ini.example
 
 # Create configuration from the package templates if it doesn't exist
-for name in MMDVM-Host MMDVM-Display; do
+for name in MMDVM-Host MMDVM-Display MMDVM-Info; do
 	if [ ! -f /etc/mmdvmhost/$name.ini ] && [ -f /usr/share/mmdvmhost/$name.ini.example ]; then
 		cp /usr/share/mmdvmhost/$name.ini.example /etc/mmdvmhost/$name.ini
 		echo "Created /etc/mmdvmhost/$name.ini from template - edit it to match your setup"

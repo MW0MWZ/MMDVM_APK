@@ -6,7 +6,7 @@ pkgver=2025.01.01
 pkgrel=0
 # Git commit will be captured during build
 _gitcommit="590c531"
-pkgdesc="MMDVM-Host, MMDVM-Display and MMDVMCal for Digital Amateur Radio"
+pkgdesc="MMDVM-Host, MMDVM-Display, MMDVM-Info and MMDVMCal for Digital Amateur Radio"
 url="https://github.com/g4klx/MMDVM-Host"
 arch="x86_64 armhf aarch64"
 license="GPL-2.0-or-later"
@@ -39,6 +39,7 @@ options="!check"  # No test suite
 giturl="https://github.com/g4klx/MMDVM-Host.git"
 giturl_cal="https://github.com/g4klx/MMDVMCal.git"
 giturl_display="https://github.com/g4klx/MMDVM-Display.git"
+giturl_info="https://github.com/g4klx/MMDVM-Info.git"
 giturl_oled="https://github.com/MW0MWZ/ArduiPi_OLED.git"
 
 # We'll clone the git repo in prepare() instead of using source
@@ -47,6 +48,7 @@ prepare() {
 	rm -rf "$srcdir/MMDVM-Host"
 	rm -rf "$srcdir/MMDVMCal"
 	rm -rf "$srcdir/MMDVM-Display"
+	rm -rf "$srcdir/MMDVM-Info"
 	rm -rf "$srcdir/ArduiPi_OLED"
 	rm -rf "$srcdir/oled-install"
 
@@ -74,6 +76,20 @@ prepare() {
 
 	local git_version_display=$(git describe --tags --always)
 	msg "MMDVM-Display git version: $git_version_display"
+
+	# Clone the MMDVM-Info repository (all architectures); MMDVM-Display
+	# gets host configuration, network addresses and CPU status from it
+	msg "Cloning MMDVM-Info from $giturl_info"
+	git clone "$giturl_info" "$srcdir/MMDVM-Info"
+	cd "$srcdir/MMDVM-Info"
+
+	local git_version_info=$(git describe --tags --always)
+	msg "MMDVM-Info git version: $git_version_info"
+
+	# Upstream relies on <unistd.h> being pulled in indirectly, which musl
+	# doesn't do. Patches are applied here because source="" means
+	# default_prepare has nothing to apply.
+	patch -p1 -N < "$startdir"/mmdvminfo-musl-unistd.patch
 
 	# Clone ArduiPi_OLED library (ARM only, needed for MMDVM-Display OLED support)
 	case "$CARCH" in
@@ -166,6 +182,18 @@ build() {
 				-j $(nproc)
 			;;
 	esac
+
+	# Build MMDVM-Info
+	cd "$srcdir/MMDVM-Info"
+
+	make clean
+
+	msg "Building MMDVM-Info"
+	make \
+		CFLAGS="$CFLAGS -std=c++17 -pthread -MMD -MD" \
+		LDFLAGS="$LDFLAGS" \
+		-j $(nproc) \
+		all
 }
 
 package() {
@@ -204,6 +232,28 @@ package() {
 		install -Dm755 NextionUpdater "$pkgdir"/usr/bin/NextionUpdater
 	fi
 	install -Dm644 MMDVM-Display.ini "$pkgdir"/usr/share/mmdvmhost/MMDVM-Display.ini.example
+
+	# Install MMDVM-Info. The upstream template points [Configs] at a
+	# source-tree layout and lists programs this repository doesn't ship,
+	# so point it at the paths our packages install to.
+	cd "$srcdir/MMDVM-Info"
+	install -Dm755 MMDVM-Info "$pkgdir"/usr/bin/MMDVM-Info
+	install -Dm644 MMDVM-Info.ini "$pkgdir"/usr/share/mmdvmhost/MMDVM-Info.ini.example
+	sed -i \
+		-e 's|^APRSGateway=.*|APRSGateway=/etc/aprsclients/APRSGateway.ini|' \
+		-e 's|^DAPNETGateway=.*|DAPNETGateway=/etc/pocsagclients/DAPNETGateway.ini|' \
+		-e 's|^DGIdGateway=.*|DGIdGateway=/etc/ysfclients/DGIdGateway.ini|' \
+		-e 's|^DMRGateway=.*|DMRGateway=/etc/dmrclients/DMRGateway.ini|' \
+		-e 's|^DStarGateway=.*|DStarGateway=/etc/dstarclients/DStarGateway.ini|' \
+		-e 's|^FMGateway=.*|FMGateway=/etc/fmclients/FMGateway.ini|' \
+		-e 's|^MMDVM-Host=.*|MMDVM-Host=/etc/mmdvmhost/MMDVM-Host.ini|' \
+		-e 's|^NXDNGateway=.*|NXDNGateway=/etc/nxdnclients/NXDNGateway.ini|' \
+		-e 's|^P25Gateway=.*|P25Gateway=/etc/p25clients/P25Gateway.ini|' \
+		-e 's|^YSFGateway=.*|YSFGateway=/etc/ysfclients/YSFGateway.ini|' \
+		-e '/^MMDVM-CrossMode=/d' -e '/^MMDVM-IQ=/d' \
+		-e '/^Program=MMDVM-CrossMode$/d' -e '/^Program=MMDVM-IQ$/d' \
+		-e 's|^Program=MMDVMHost$|Program=MMDVM-Host\nProgram=MMDVM-Display|' \
+		"$pkgdir"/usr/share/mmdvmhost/MMDVM-Info.ini.example
 
 	# Install ArduiPi_OLED shared library (ARM only)
 	case "$CARCH" in
@@ -244,6 +294,11 @@ package() {
 		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README-MMDVM-Display.md
 	fi
 
+	cd "$srcdir/MMDVM-Info"
+	if [ -f README.md ]; then
+		install -Dm644 README.md "$pkgdir"/usr/share/doc/$pkgname/README-MMDVM-Info.md
+	fi
+
 	# Look for license file
 	mkdir -p "$pkgdir"/usr/share/licenses/$pkgname
 	cd "$srcdir/MMDVM-Host"
@@ -267,6 +322,8 @@ package() {
 	install -Dm644 "$startdir"/mmdvmhost.confd "$pkgdir"/etc/conf.d/mmdvmhost
 	install -Dm755 "$startdir"/displaydriver.initd "$pkgdir"/etc/init.d/displaydriver
 	install -Dm644 "$startdir"/displaydriver.confd "$pkgdir"/etc/conf.d/displaydriver
+	install -Dm755 "$startdir"/mmdvminfo.initd "$pkgdir"/etc/init.d/mmdvminfo
+	install -Dm644 "$startdir"/mmdvminfo.confd "$pkgdir"/etc/conf.d/mmdvminfo
 }
 
 doc() {

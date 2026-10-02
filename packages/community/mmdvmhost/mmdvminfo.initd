@@ -5,10 +5,10 @@ name="MMDVM-Info"
 description="MMDVM-Info - system, network and configuration information via MQTT"
 
 # Configuration
-: ${MMDVMINFO_CONFIG:="/etc/mmdvminfo/MMDVM-Info.ini"}
+: ${MMDVMINFO_CONFIG:="/etc/mmdvmhost/MMDVM-Info.ini"}
 : ${MMDVMINFO_USER:="mmdvm"}
 : ${MMDVMINFO_GROUP:="mmdvm"}
-: ${MMDVMINFO_LOGFILE:="/var/log/mmdvminfo/mmdvminfo.log"}
+: ${MMDVMINFO_LOGFILE:="/var/log/mmdvmhost/mmdvminfo.log"}
 
 command="/usr/bin/MMDVM-Info"
 command_args="${MMDVMINFO_CONFIG}"
@@ -27,10 +27,10 @@ depend() {
 start_pre() {
 	if [ ! -f "${MMDVMINFO_CONFIG}" ]; then
 		eerror "Configuration file ${MMDVMINFO_CONFIG} does not exist"
-		eerror "Please create it from the template: cp /usr/share/mmdvminfo/MMDVM-Info.ini.example ${MMDVMINFO_CONFIG}"
+		eerror "Please create it from the template: cp /usr/share/mmdvmhost/MMDVM-Info.ini.example ${MMDVMINFO_CONFIG}"
 		return 1
 	fi
 
-	checkpath -d -o "${MMDVMINFO_USER}:${MMDVMINFO_GROUP}" -m 0755 /var/log/mmdvminfo
+	checkpath -d -o "${MMDVMINFO_USER}:${MMDVMINFO_GROUP}" -m 0755 /var/log/mmdvmhost
 	checkpath -f -o "${MMDVMINFO_USER}:${MMDVMINFO_GROUP}" -m 0644 "${MMDVMINFO_LOGFILE}"
 }

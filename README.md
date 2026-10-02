@@ -15,8 +15,7 @@ Alpine Linux package repository for Ham Radio software, hosted on GitHub Pages.
 
 | Package | Description | Components | Upstream |
 |---------|-------------|------------|----------|
-| **mmdvmhost** | MMDVM host, display driver & calibration tool | MMDVM-Host, MMDVM-Display, NextionUpdater, MMDVMCal | [MMDVM-Host](https://github.com/g4klx/MMDVM-Host), [MMDVM-Display](https://github.com/g4klx/MMDVM-Display) & [MMDVMCal](https://github.com/g4klx/MMDVMCal) |
-| **mmdvminfo** | Configuration, network and system information over MQTT (used by MMDVM-Display) | MMDVM-Info | [MMDVM-Info](https://github.com/g4klx/MMDVM-Info) |
+| **mmdvmhost** | MMDVM host, display driver, info service & calibration tool | MMDVM-Host, MMDVM-Display, NextionUpdater, MMDVM-Info, MMDVMCal | [MMDVM-Host](https://github.com/g4klx/MMDVM-Host), [MMDVM-Display](https://github.com/g4klx/MMDVM-Display), [MMDVM-Info](https://github.com/g4klx/MMDVM-Info) & [MMDVMCal](https://github.com/g4klx/MMDVMCal) |
 
 ### Repeater Software
 
@@ -65,7 +64,7 @@ wget -O /etc/apk/keys/hamradio.rsa.pub https://apk.pistar.uk/hamradio.rsa.pub
 apk update
 
 # Install all packages
-apk add mmdvmhost mmdvminfo aprsclients dmrclients dstarclients dstarrepeater \
+apk add mmdvmhost aprsclients dmrclients dstarclients dstarrepeater \
         fmclients nxdnclients p25clients pocsagclients ysfclients
 
 # Or install specific packages
@@ -80,8 +79,8 @@ All packages include OpenRC init scripts with logical service names:
 
 ```bash
 # Configure services: templates ship in /usr/share/<package>/, live
-# configuration goes in /etc/<package>/. The mmdvmhost and mmdvminfo
-# packages create their configs from the templates on install.
+# configuration goes in /etc/<package>/. The mmdvmhost package creates
+# its configs from the templates on install.
 cp /usr/share/dmrclients/DMRGateway.ini.example /etc/dmrclients/DMRGateway.ini
 cp /usr/share/ysfclients/YSFGateway.ini.example /etc/ysfclients/YSFGateway.ini
 cp /usr/share/dstarrepeater/dstarrepeater.ini.example /etc/dstarrepeater/dstarrepeater.ini
@@ -89,7 +88,7 @@ cp /usr/share/dstarrepeater/dstarrepeater.ini.example /etc/dstarrepeater/dstarre
 # Start services
 rc-service mmdvmhost start      # MMDVM-Host
 rc-service displaydriver start  # MMDVM-Display
-rc-service mmdvminfo start      # MMDVM-Info
+rc-service mmdvminfo start      # MMDVM-Info (used by MMDVM-Display)
 rc-service dmrgateway start     # DMR Gateway
 rc-service ysfgateway start     # YSF Gateway + Parrot
 rc-service dgidgateway start    # DGId Gateway
@@ -157,8 +156,7 @@ MMDVM_APK/
 ├── .github/workflows/   # GitHub Actions workflows
 │   └── build-packages.yml
 ├── packages/community/  # Package definitions
-│   ├── mmdvmhost/       # MMDVM-Host, MMDVM-Display, MMDVMCal
-│   ├── mmdvminfo/       # MMDVM-Info
+│   ├── mmdvmhost/       # MMDVM-Host, MMDVM-Display, MMDVM-Info, MMDVMCal
 │   ├── dstarrepeater/   # D-Star Repeater Controller
 │   ├── dmrclients/      # DMRGateway, DMR2YSF, DMR2NXDN
 │   ├── dstarclients/    # DStarGateway and tools
@@ -199,7 +197,7 @@ The repository follows a logical grouping structure:
 - **Protocol-specific clients**: `dmrclients`, `dstarclients`, `ysfclients`, `nxdnclients`, `p25clients`
   - Each contains the main gateway, parrot/test tools, and cross-mode converters where applicable
 - **Repeater controllers**: `dstarrepeater` - Complete D-Star repeater system
-- **Core software**: `mmdvmhost` - MMDVM-Host, MMDVM-Display and MMDVMCal; `mmdvminfo` - MMDVM-Info
+- **Core software**: `mmdvmhost` - MMDVM-Host, MMDVM-Display, MMDVM-Info and MMDVMCal
 - **Single-purpose clients**: `aprsclients`, `pocsagclients`, `fmclients`
 
 ### Adding New Packages
