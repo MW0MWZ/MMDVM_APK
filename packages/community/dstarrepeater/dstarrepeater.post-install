@@ -1,64 +1,26 @@
 #!/bin/sh
-# Post-installation script for dstarrepeater
+# Post-install/upgrade script for dstarrepeater package
 
-# Create required directories if they don't exist
-[ ! -d /var/log/dstarrepeater ] && mkdir -p /var/log/dstarrepeater
-[ ! -d /var/lib/dstarrepeater ] && mkdir -p /var/lib/dstarrepeater
-[ ! -d /etc/dstarrepeater ] && mkdir -p /etc/dstarrepeater
+# The OpenRC service runs as mmdvm (see /etc/conf.d/dstarrepeater)
+getent group mmdvm >/dev/null 2>&1 || addgroup mmdvm
+id mmdvm >/dev/null 2>&1 || adduser -D -H -s /sbin/nologin -G mmdvm mmdvm
 
-# Set proper ownership and permissions
-chown -R dstar:dstar /var/log/dstarrepeater
-chown -R dstar:dstar /var/lib/dstarrepeater
-chmod 755 /var/log/dstarrepeater
-chmod 755 /var/lib/dstarrepeater
-
-# Ensure configuration directory has proper permissions
-chmod 755 /etc/dstarrepeater
-
-# Print installation message
-cat <<EOF
-================================================================================
-DStarRepeater has been installed!
-
-IMPORTANT: Before starting the service, you need to:
-
-1. Create a configuration file:
-   Copy one of the example files from /etc/dstarrepeater/*.example
-   to /etc/dstarrepeater/dstarrepeater.conf and edit it for your setup.
-
-   For example:
-   cp /etc/dstarrepeater/dstarrepeater.conf.example /etc/dstarrepeater/dstarrepeater.conf
-   vi /etc/dstarrepeater/dstarrepeater.conf
-
-2. For different repeater types, edit /etc/conf.d/dstarrepeater to specify
-   the correct daemon and configuration file.
-
-3. Enable and start the service:
-   rc-update add dstarrepeater default
-   rc-service dstarrepeater start
-
-4. Hardware Access:
-   - For serial devices: User 'dstar' has been added to 'dialout' group
-   - For USB devices: User 'dstar' has been added to 'usb' group
-   - For sound cards: User 'dstar' has been added to 'audio' group
-EOF
-
-# ARM-specific message
+# Serial port access for the modem, GPIO for PTT on ARM boards
+addgroup mmdvm dialout 2>/dev/null || true
 case "$(uname -m)" in
 	arm*|aarch64)
-		cat <<EOF
-   - For GPIO access: User 'dstar' has been added to 'gpio' group
-     (Required for hardware PTT control on Raspberry Pi)
-EOF
+		getent group gpio >/dev/null 2>&1 && addgroup mmdvm gpio 2>/dev/null || true
 		;;
 esac
 
-cat <<EOF
+if [ -d /var/log/dstarrepeater ]; then
+	find /var/log/dstarrepeater -maxdepth 0 -exec chown mmdvm:mmdvm {} \; 2>/dev/null || true
+fi
 
-5. Check logs at /var/log/dstarrepeater/ if you encounter any issues.
-
-For more information, see the documentation in /usr/share/doc/dstarrepeater/
-================================================================================
-EOF
+# Create configuration from the package template if it doesn't exist
+if [ ! -f /etc/dstarrepeater/dstarrepeater.ini ] && [ -f /usr/share/dstarrepeater/dstarrepeater.ini.example ]; then
+	cp /usr/share/dstarrepeater/dstarrepeater.ini.example /etc/dstarrepeater/dstarrepeater.ini
+	echo "Created /etc/dstarrepeater/dstarrepeater.ini from template - edit it to match your setup"
+fi
 
 exit 0

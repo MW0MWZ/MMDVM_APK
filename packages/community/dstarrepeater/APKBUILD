@@ -26,6 +26,7 @@ depends="
 	mosquitto-libs
 	"
 subpackages="$pkgname-doc $pkgname-openrc"
+install="$pkgname.post-install $pkgname.post-upgrade"
 source=""
 options="!check"  # No test suite
 giturl="https://github.com/g4klx/DStarRepeater.git"
