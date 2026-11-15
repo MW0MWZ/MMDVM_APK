@@ -495,6 +495,9 @@ jobs:
     name: Deploy to GitHub Pages
     needs: [prepare, build]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: read
     if: |
       always() && 
       needs.build.result == 'success' &&
@@ -887,29 +890,17 @@ jobs:
             Deploy APK repository - build #${{ github.run_number }}
             ${{ env.CLEANUP_TOTAL_DELETED && format('Cleaned up {0} old packages, freed {1}', env.CLEANUP_TOTAL_DELETED, env.CLEANUP_SPACE_FREED) || '' }}
       
-      - name: Purge Cloudflare Cache
+      - name: Wait for the live repository, then purge Cloudflare
         if: success()
         env:
+          GH_TOKEN: ${{ github.token }}
           CLOUDFLARE_ZONE: ${{ secrets.CLOUDFLARE_ZONE }}
           CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+          SITE: https://apk.pistar.uk
+          INDEX_PATHS: v3.23/community/x86_64/APKINDEX.tar.gz v3.23/community/armhf/APKINDEX.tar.gz v3.23/community/aarch64/APKINDEX.tar.gz v3.23/community/noarch/APKINDEX.tar.gz v3.22/community/x86_64/APKINDEX.tar.gz v3.22/community/armhf/APKINDEX.tar.gz v3.22/community/aarch64/APKINDEX.tar.gz v3.22/community/noarch/APKINDEX.tar.gz hamradio.rsa.pub
         run: |
-          if [ -n "$CLOUDFLARE_ZONE" ] && [ -n "$CLOUDFLARE_TOKEN" ]; then
-            echo "Purging Cloudflare cache for APKINDEX files..."
-            
-            # Purge all APKINDEX files (including noarch)
-            FILES_TO_PURGE='["https://apk.pistar.uk/v3.23/community/x86_64/APKINDEX.tar.gz","https://apk.pistar.uk/v3.23/community/armhf/APKINDEX.tar.gz","https://apk.pistar.uk/v3.23/community/aarch64/APKINDEX.tar.gz","https://apk.pistar.uk/v3.23/community/noarch/APKINDEX.tar.gz","https://apk.pistar.uk/v3.22/community/x86_64/APKINDEX.tar.gz","https://apk.pistar.uk/v3.22/community/armhf/APKINDEX.tar.gz","https://apk.pistar.uk/v3.22/community/aarch64/APKINDEX.tar.gz","https://apk.pistar.uk/v3.22/community/noarch/APKINDEX.tar.gz"]'
-            
-            RESPONSE=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE/purge_cache" \
-              -H "Authorization: Bearer $CLOUDFLARE_TOKEN" \
-              -H "Content-Type: application/json" \
-              --data "{\"files\":$FILES_TO_PURGE}")
-            
-            if echo "$RESPONSE" | grep -q '"success":true'; then
-              echo "Successfully purged Cloudflare cache"
-            else
-              echo "Warning: Cloudflare cache purge may have failed"
-              echo "Response: $RESPONSE"
-            fi
-          else
-            echo "Cloudflare credentials not configured, skipping cache purge"
-          fi
+          # Purging before the GitHub Pages build finishes lets Cloudflare
+          # re-cache the old index for hours, so image builds install the
+          # previous release.
+          scripts/wait-for-pages.sh || \
+            echo "::warning::https://apk.pistar.uk is not yet serving the deployed index"
