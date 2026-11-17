@@ -48,129 +48,41 @@ jobs:
         run: |
           set -e
           
-          # Function to get latest commit from GitHub (with authentication)
-          get_github_commit() {
-            local url=$1
-            local repo=$(echo "$url" | sed 's|.*github.com/||' | sed 's|\.git$||')
-            
-            # Try to get latest commit from default branch with auth token
-            for branch in main master develop; do
-              commit=$(curl -sL -H "Accept: application/vnd.github.v3+json" \
-                -H "Authorization: token ${GITHUB_TOKEN}" \
-                "https://api.github.com/repos/${repo}/commits/${branch}" | \
-                grep '"sha"' | head -1 | cut -d'"' -f4 | cut -c1-7)
-              
-              if [ -n "$commit" ]; then
-                echo "$commit"
-                return
-              fi
-            done
-            
-            # If all branches fail, try to get the default branch
-            default_branch=$(curl -sL -H "Accept: application/vnd.github.v3+json" \
-              -H "Authorization: token ${GITHUB_TOKEN}" \
-              "https://api.github.com/repos/${repo}" | \
-              grep '"default_branch"' | cut -d'"' -f4)
-            
-            if [ -n "$default_branch" ]; then
-              commit=$(curl -sL -H "Accept: application/vnd.github.v3+json" \
-                -H "Authorization: token ${GITHUB_TOKEN}" \
-                "https://api.github.com/repos/${repo}/commits/${default_branch}" | \
-                grep '"sha"' | head -1 | cut -d'"' -f4 | cut -c1-7)
-              
-              if [ -n "$commit" ]; then
-                echo "$commit"
-                return
-              fi
-            fi
-            
-            echo ""
-          }
-          
-          # Function to check if package needs update
+          # A package needs rebuilding when ANY upstream repository it builds
+          # from has moved on: scripts/upstream-commits.sh lists every
+          # *giturl* in the APKBUILD with its recorded and latest commit.
           check_package_update() {
             local package=$1
             local apkbuild="packages/community/${package}/APKBUILD"
-            
+            local needs=1
+
             if [ ! -f "$apkbuild" ]; then
               echo "APKBUILD not found for $package"
               return 1
             fi
-            
-            # Get git URL from APKBUILD and track which variable it came from
-            local giturl=$(grep "^giturl=" "$apkbuild" | head -1 | cut -d'"' -f2)
-            local giturl_var="giturl"
-            
-            # Check for package-specific git URLs if main one not found
-            if [ -z "$giturl" ]; then
-              for var in mmdvm_cm_giturl dmrgateway_giturl nxdnclients_giturl dstargateway_giturl; do
-                giturl=$(grep "^${var}=" "$apkbuild" | head -1 | cut -d'"' -f2)
-                if [ -n "$giturl" ]; then
-                  giturl_var="$var"
-                  break
-                fi
-              done
-            fi
-            
-            if [ -z "$giturl" ]; then
-              echo "No git URL found for $package"
+            echo "Checking $package"
+            local lines
+            lines=$(scripts/upstream-commits.sh "$apkbuild")
+            if [ -z "$lines" ]; then
+              echo "  No git URL found"
               return 1
             fi
-            
-            echo "Checking $package from $giturl"
-            
-            # Get current commit - use the appropriate commit variable based on which URL we found
-            local current_commit=""
-            if [ "$giturl_var" = "giturl" ]; then
-              # Standard commit variable
-              current_commit=$(grep "^_gitcommit=" "$apkbuild" | cut -d'"' -f2)
-            else
-              # Package-specific commit variable (e.g., _dstargateway_gitcommit for dstargateway_giturl)
-              local commit_var="_${giturl_var%_giturl}_gitcommit"
-              current_commit=$(grep "^${commit_var}=" "$apkbuild" | cut -d'"' -f2)
-              
-              # If specific commit var doesn't exist, try generic _gitcommit as fallback
-              if [ -z "$current_commit" ]; then
-                current_commit=$(grep "^_gitcommit=" "$apkbuild" | cut -d'"' -f2)
+            while read -r cvar recorded latest url var; do
+              if [ "$latest" = "-" ]; then
+                echo "  ⚠️  $url: could not be reached"
+                echo "::warning::$package: could not reach $url"
+              elif [ "$recorded" != "$latest" ]; then
+                echo "  ✅ $url: $recorded -> $latest"
+                needs=0
+              else
+                echo "  ✓ $url: $latest"
               fi
-            fi
-            
-            # Get latest commit from upstream
-            local latest_commit=$(get_github_commit "$giturl")
-            
-            if [ -z "$latest_commit" ]; then
-              echo "Could not fetch latest commit for $package (API rate limit or network issue?)"
-              return 1
-            fi
-            
-            echo "  Current: ${current_commit:-unknown}"
-            echo "  Latest:  $latest_commit"
-            
-            # Check if update is needed
-            if [ "$current_commit" != "$latest_commit" ]; then
-              echo "  ✅ UPDATE AVAILABLE!"
-              # Store which variable needs updating
-              echo "${package}:${giturl_var}:${current_commit}:${latest_commit}" >> /tmp/package_updates.txt
-              return 0
-            else
-              echo "  ✓ Up to date"
-              return 1
-            fi
+            done <<UPSTREAM
+          $lines
+          UPSTREAM
+            return $needs
           }
-          
-          # Check API rate limit before starting
-          echo "Checking GitHub API rate limit..."
-          RATE_LIMIT=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
-            "https://api.github.com/rate_limit" | \
-            grep -A2 '"core"' | grep '"remaining"' | cut -d: -f2 | tr -d ' ,')
-          
-          if [ -n "$RATE_LIMIT" ]; then
-            echo "API calls remaining: $RATE_LIMIT"
-            if [ "$RATE_LIMIT" -lt "50" ]; then
-              echo "⚠️  Warning: Low API rate limit remaining. Consider reducing check frequency."
-            fi
-          fi
-          
+
           # Determine which packages to check
           if [ -n "$SPECIFIC_PACKAGES" ]; then
             PACKAGES="$SPECIFIC_PACKAGES"
@@ -253,116 +165,43 @@ jobs:
         run: |
           set -e
           
-          # Function to get latest commit from GitHub
-          get_github_commit() {
-            local url=$1
-            local repo=$(echo "$url" | sed 's|.*github.com/||' | sed 's|\.git$||')
-            
-            # Try to get latest commit from default branch with auth
-            for branch in main master develop; do
-              commit=$(curl -sL -H "Accept: application/vnd.github.v3+json" \
-                -H "Authorization: token ${GITHUB_TOKEN}" \
-                "https://api.github.com/repos/${repo}/commits/${branch}" | \
-                grep '"sha"' | head -1 | cut -d'"' -f4 | cut -c1-7)
-              
-              if [ -n "$commit" ]; then
-                echo "$commit"
-                return
-              fi
-            done
-            
-            # Try default branch
-            default_branch=$(curl -sL -H "Accept: application/vnd.github.v3+json" \
-              -H "Authorization: token ${GITHUB_TOKEN}" \
-              "https://api.github.com/repos/${repo}" | \
-              grep '"default_branch"' | cut -d'"' -f4)
-            
-            if [ -n "$default_branch" ]; then
-              commit=$(curl -sL -H "Accept: application/vnd.github.v3+json" \
-                -H "Authorization: token ${GITHUB_TOKEN}" \
-                "https://api.github.com/repos/${repo}/commits/${default_branch}" | \
-                grep '"sha"' | head -1 | cut -d'"' -f4 | cut -c1-7)
-              
-              echo "$commit"
-            fi
-          }
-          
-          # Update each package
+          # Record the latest commit of every upstream repository that has
+          # moved on, each in its own variable (see scripts/upstream-commits.sh);
+          # a variable not yet in the APKBUILD goes after its URL.
           UPDATED_PACKAGES=""
           UPDATE_DETAILS=""
-          
+
           for package in $PACKAGES; do
             APKBUILD="packages/community/${package}/APKBUILD"
-            
+
             if [ ! -f "$APKBUILD" ]; then
               echo "Skipping $package - APKBUILD not found"
               continue
             fi
-            
-            # Get git URL and track which variable it came from
-            giturl=$(grep "^giturl=" "$APKBUILD" | head -1 | cut -d'"' -f2)
-            giturl_var="giturl"
-            
-            if [ -z "$giturl" ]; then
-              for var in mmdvm_cm_giturl dmrgateway_giturl nxdnclients_giturl dstargateway_giturl; do
-                giturl=$(grep "^${var}=" "$APKBUILD" | head -1 | cut -d'"' -f2)
-                if [ -n "$giturl" ]; then
-                  giturl_var="$var"
-                  break
-                fi
-              done
-            fi
-            
-            if [ -z "$giturl" ]; then
-              echo "Skipping $package - no git URL found"
-              continue
-            fi
-            
-            # Get current commit using the appropriate variable
-            if [ "$giturl_var" = "giturl" ]; then
-              current_commit=$(grep "^_gitcommit=" "$APKBUILD" | cut -d'"' -f2)
-              commit_var="_gitcommit"
-            else
-              # Try package-specific commit variable first
-              commit_var="_${giturl_var%_giturl}_gitcommit"
-              current_commit=$(grep "^${commit_var}=" "$APKBUILD" | cut -d'"' -f2)
-              
-              # Fallback to generic if not found
-              if [ -z "$current_commit" ]; then
-                commit_var="_gitcommit"
-                current_commit=$(grep "^${commit_var}=" "$APKBUILD" | cut -d'"' -f2)
+
+            changed=0
+            while read -r cvar recorded latest url var; do
+              [ -n "$cvar" ] || continue
+              if [ "$latest" = "-" ] || [ "$recorded" = "$latest" ]; then
+                continue
               fi
+              echo "Updating $package ($url): ${recorded} -> ${latest} in ${cvar}"
+              if grep -q "^${cvar}=" "$APKBUILD"; then
+                sed -i "s/^${cvar}=.*/${cvar}=\"${latest}\"/" "$APKBUILD"
+              else
+                sed -i "/^${var}=/a ${cvar}=\"${latest}\"" "$APKBUILD"
+              fi
+              UPDATE_DETAILS="${UPDATE_DETAILS}\n- ${package} (${url##*/}): ${recorded} → ${latest}"
+              changed=1
+            done <<UPSTREAM
+          $(scripts/upstream-commits.sh "$APKBUILD")
+          UPSTREAM
+
+            if [ "$changed" = 1 ]; then
+              UPDATED_PACKAGES="$UPDATED_PACKAGES $package"
             fi
-            
-            # Get latest commit
-            latest_commit=$(get_github_commit "$giturl")
-            
-            if [ -z "$latest_commit" ]; then
-              echo "Skipping $package - could not fetch latest commit"
-              continue
-            fi
-            
-            if [ "$current_commit" = "$latest_commit" ]; then
-              echo "Skipping $package - already up to date"
-              continue
-            fi
-            
-            echo "Updating $package: ${current_commit} -> ${latest_commit}"
-            echo "  Using commit variable: ${commit_var}"
-            
-            # Update the appropriate commit variable in APKBUILD
-            if grep -q "^${commit_var}=" "$APKBUILD"; then
-              # Variable exists, update it
-              sed -i "s/^${commit_var}=.*/${commit_var}=\"${latest_commit}\"/" "$APKBUILD"
-            else
-              # Variable doesn't exist, add it after the giturl line
-              sed -i "/^${giturl_var}=/a ${commit_var}=\"${latest_commit}\"" "$APKBUILD"
-            fi
-            
-            UPDATED_PACKAGES="$UPDATED_PACKAGES $package"
-            UPDATE_DETAILS="${UPDATE_DETAILS}\n- ${package}: ${current_commit:0:7} → ${latest_commit}"
           done
-          
+
           # Trim whitespace
           UPDATED_PACKAGES=$(echo "$UPDATED_PACKAGES" | xargs)
           
