@@ -26,6 +26,7 @@ source=""
 options="!check"  # No test suite
 giturl="https://github.com/g4klx/YSFClients.git"
 mmdvm_cm_giturl="https://github.com/nostar/MMDVM_CM.git"
+_mmdvm_cm_gitcommit="1dd5383"
 
 # We'll clone the git repos in prepare() instead of using source
 prepare() {

@@ -25,7 +25,9 @@ subpackages="$pkgname-doc $pkgname-openrc"
 source=""
 options="!check"  # No test suite
 nxdnclients_giturl="https://github.com/g4klx/NXDNClients.git"
+_nxdnclients_gitcommit="2317ab4"
 mmdvm_cm_giturl="https://github.com/nostar/MMDVM_CM.git"
+_mmdvm_cm_gitcommit="1dd5383"
 
 # We'll clone the git repos in prepare() instead of using source
 prepare() {
