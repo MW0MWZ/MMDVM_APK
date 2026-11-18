@@ -14,6 +14,7 @@ makedepends="
 	build-base
 	git
 	mosquitto-dev
+	gpsd-dev
 	nlohmann-json
 	"
 depends="
@@ -54,9 +55,10 @@ build() {
 		cd P25Gateway
 		make clean || true
 		make \
-			CFLAGS="$CFLAGS" \
+			CFLAGS="$CFLAGS -DUSE_GPSD" \
 			CXXFLAGS="$CXXFLAGS" \
 			LDFLAGS="$LDFLAGS" \
+			LIBS="-lpthread -lgps -lmosquitto" \
 			-j $(nproc) \
 			all
 		cd ..

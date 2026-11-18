@@ -14,6 +14,7 @@ makedepends="
 	build-base
 	git
 	mosquitto-dev
+	gpsd-dev
 	nlohmann-json
 	"
 depends="
@@ -68,9 +69,10 @@ build() {
 		cd YSFGateway
 		make clean || true
 		make \
-			CFLAGS="$CFLAGS" \
+			CFLAGS="$CFLAGS -DUSE_GPSD" \
 			CXXFLAGS="$CXXFLAGS" \
 			LDFLAGS="$LDFLAGS" \
+			LIBS="-lm -lpthread -lgps -lmosquitto" \
 			-j $(nproc) \
 			all
 		cd ..

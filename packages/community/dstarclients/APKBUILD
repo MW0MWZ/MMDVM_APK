@@ -14,6 +14,7 @@ makedepends="
 	linux-headers
 	boost-dev
 	mosquitto-dev
+	gpsd-dev
 	nlohmann-json
 	"
 depends="
@@ -70,8 +71,9 @@ build() {
 		DATA_DIR="/usr/share/dstarclients" \
 		LOG_DIR="/var/log/dstarclients" \
 		BIN_DIR="/usr/bin" \
-		LDFLAGS="$LDFLAGS -lpthread -lmosquitto" \
-		LIBS="-lpthread -lmosquitto" \
+		LDFLAGS="$LDFLAGS -lpthread -lmosquitto -lgps" \
+		LIBS="-lpthread -lmosquitto -lgps" \
+		USE_GPSD=1 \
 		-j $(nproc) \
 		all
 }
