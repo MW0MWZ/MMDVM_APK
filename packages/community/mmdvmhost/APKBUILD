@@ -92,8 +92,13 @@ prepare() {
 
 	# Upstream relies on <unistd.h> being pulled in indirectly, which musl
 	# doesn't do. Patches are applied here because source="" means
-	# default_prepare has nothing to apply.
-	patch -p1 -N < "$startdir"/mmdvminfo-musl-unistd.patch
+	# default_prepare has nothing to apply. Once upstream has the include
+	# (g4klx/MMDVM-Info#1, however it lands) the patch is skipped.
+	if grep -q '^#include <unistd.h>' MMDVM-Info.cpp; then
+		msg "MMDVM-Info already includes <unistd.h>; patch not needed"
+	else
+		patch -p1 < "$startdir"/mmdvminfo-musl-unistd.patch
+	fi
 
 	# Clone ArduiPi_OLED library (ARM only, needed for MMDVM-Display OLED support)
 	case "$CARCH" in
