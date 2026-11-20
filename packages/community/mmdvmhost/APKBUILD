@@ -44,7 +44,7 @@ _display_gitcommit="b4edbd1"
 giturl_info="https://github.com/g4klx/MMDVM-Info.git"
 _info_gitcommit="a1d884a"
 giturl_oled="https://github.com/MW0MWZ/ArduiPi_OLED.git"
-_oled_gitcommit="50fa499"
+_oled_gitcommit="e986f4b"
 
 # We'll clone the git repo in prepare() instead of using source
 prepare() {
