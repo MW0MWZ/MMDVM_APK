@@ -122,6 +122,12 @@ package() {
 		sed -i 's|^User=.*|User=mmdvm|' "$template"
 	fi
 
+	# DGWTimeServer's configuration template, as upstream ships it
+	if [ -f "DGWTimeServer/example.cfg" ]; then
+		install -Dm644 "DGWTimeServer/example.cfg" \
+			"$pkgdir/usr/share/dstarclients/DGWTimeServer.ini.example"
+	fi
+
 	# Install data files from Data directory (voice/audio files only, not host .txt files)
 	install -dm755 "$pkgdir/usr/share/dstarclients"
 	if [ -d "Data" ]; then
