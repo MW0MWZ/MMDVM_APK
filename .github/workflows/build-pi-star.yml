@@ -151,6 +151,10 @@ jobs:
           cp release-assets/pistar-mcp.confd "$TEMP_DIR/"
           cp release-assets/pi-star.post-install "$TEMP_DIR/"
           cp release-assets/pistar-mcp.ini.example "$TEMP_DIR/"
+          # MCP's check for the RasPINE watchdog (releases from 2026-11-23)
+          if [ -f release-assets/pistar-mcp.watchdog.conf ]; then
+            cp release-assets/pistar-mcp.watchdog.conf "$TEMP_DIR/"
+          fi
 
           # Copy the binary (renamed to pistar-mcp)
           cp "release-assets/${{ matrix.binary }}" "$TEMP_DIR/pistar-mcp"
