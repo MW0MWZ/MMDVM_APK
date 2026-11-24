@@ -18,8 +18,8 @@
 # 1.0_rc1, which numeric ordering would get wrong), is left alone with
 # a warning.
 #
-# With GITHUB_ENV set, CLEANUP_TOTAL_DELETED and CLEANUP_SPACE_FREED are
-# written for the deploy commit message.
+# CLEANUP_TOTAL_DELETED and CLEANUP_SPACE_FREED are written to the file
+# named by PRUNE_ENV (or GITHUB_ENV) when one is set.
 
 set -euo pipefail
 export LC_ALL=C
@@ -111,7 +111,8 @@ done
 FREED="$((TOTAL_BYTES / 1024 / 1024))MB"
 echo "Deleted $TOTAL_DELETED old package files, freed $FREED$([ "$DRY_RUN" -eq 1 ] && echo ' (dry run: nothing removed)')"
 
-if [ -n "${GITHUB_ENV:-}" ] && [ "$DRY_RUN" -eq 0 ]; then
-	echo "CLEANUP_TOTAL_DELETED=$TOTAL_DELETED" >>"$GITHUB_ENV"
-	echo "CLEANUP_SPACE_FREED=$FREED" >>"$GITHUB_ENV"
+RESULT=${PRUNE_ENV:-${GITHUB_ENV:-}}
+if [ -n "$RESULT" ] && [ "$DRY_RUN" -eq 0 ]; then
+	echo "CLEANUP_TOTAL_DELETED=$TOTAL_DELETED" >>"$RESULT"
+	echo "CLEANUP_SPACE_FREED=$FREED" >>"$RESULT"
 fi

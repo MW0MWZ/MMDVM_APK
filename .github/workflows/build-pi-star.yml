@@ -354,94 +354,16 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Merge new packages into repository
-        run: |
-          set -e
-
-          # Merge each artifact into gh-pages
-          for ARTIFACT_DIR in artifacts/pi-star-*/; do
-            echo "Merging: $ARTIFACT_DIR"
-            # Copy .apk files (not APKINDEX — we regenerate those)
-            find "$ARTIFACT_DIR" -name "*.apk" -type f | while read pkg; do
-              # Determine target directory from path structure
-              # artifact path: artifacts/pi-star-alpine3.23-x86_64/v3.23/community/x86_64/pkg.apk
-              REL_PATH=$(echo "$pkg" | sed "s|$ARTIFACT_DIR||")
-              TARGET_DIR="gh-pages/$(dirname "$REL_PATH")"
-              mkdir -p "$TARGET_DIR"
-              cp "$pkg" "$TARGET_DIR/"
-              echo "  Copied: $(basename "$pkg") -> $TARGET_DIR/"
-            done
-          done
-
-      - name: Cleanup old package versions
-        run: scripts/prune-packages.sh 5 gh-pages/v*/community/*
-
-      - name: Regenerate repository indexes
+      # Starts from gh-pages as it is at the moment of publishing and never
+      # force-pushes: when Build APK Packages publishes first, this starts
+      # again from its commit, so neither release undoes the other.
+      - name: Publish to gh-pages
         env:
           APK_PRIVATE_KEY: ${{ secrets.APK_PRIVATE_KEY }}
         run: |
-          set -e
-
-          # Regenerate APKINDEX for each arch/version directory that has .apk files
-          for REPO_DIR in gh-pages/v*/community/*/; do
-            if ls "$REPO_DIR"/*.apk >/dev/null 2>&1; then
-              # Determine platform from directory name
-              DIR_ARCH=$(basename "$REPO_DIR")
-              ALPINE_VER=$(echo "$REPO_DIR" | grep -oP 'v\K[0-9.]+')
-
-              case "$DIR_ARCH" in
-                x86_64)  PLATFORM="linux/amd64" ;;
-                armhf)   PLATFORM="linux/arm/v6" ;;
-                aarch64) PLATFORM="linux/arm64" ;;
-                noarch)  PLATFORM="linux/amd64" ;;
-                *)       continue ;;
-              esac
-
-              echo "Regenerating index for $REPO_DIR (platform: $PLATFORM)"
-
-              TEMP_DIR=$(mktemp -d)
-              echo "$APK_PRIVATE_KEY" > "$TEMP_DIR/hamradio.rsa"
-              cp keys/hamradio.rsa.pub "$TEMP_DIR/"
-
-              docker run --rm \
-                --platform "$PLATFORM" \
-                -v "$TEMP_DIR:/keys:ro" \
-                -v "$(pwd)/$REPO_DIR:/repo" \
-                "alpine:${ALPINE_VER}" \
-                sh -c '
-                  set -e
-                  echo "https://dl-cdn.alpinelinux.org/alpine/v'${ALPINE_VER}'/community" >> /etc/apk/repositories
-                  apk update
-                  apk add --no-cache alpine-sdk
-                  mkdir -p /root/.abuild
-                  echo "PACKAGER_PRIVKEY=\"/keys/hamradio.rsa\"" > /root/.abuild/abuild.conf
-                  cp /keys/hamradio.rsa.pub /etc/apk/keys/
-                  cd /repo
-                  rm -f APKINDEX.tar.gz APKINDEX.unsigned.tar.gz
-                  apk index -o APKINDEX.unsigned.tar.gz *.apk
-                  abuild-sign -k /keys/hamradio.rsa APKINDEX.unsigned.tar.gz
-                  mv APKINDEX.unsigned.tar.gz APKINDEX.tar.gz
-                '
-
-              rm -f "$TEMP_DIR/hamradio.rsa"
-              rm -rf "$TEMP_DIR"
-            fi
-          done
-
-      - name: Deploy to gh-pages
-        run: |
-          set -e
-          cd gh-pages
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if git diff --cached --quiet; then
-            echo "No changes to deploy"
-          else
-            VERSION="${{ github.event.client_payload.version }}"
-            git commit -m "pi-star ${VERSION}"
-            git push
-          fi
+          scripts/publish-repo.sh gh-pages \
+            "pi-star ${{ github.event.client_payload.version }}" \
+            scripts/update-pi-star-repo.sh artifacts
 
       - name: Wait for the live repository, then purge Cloudflare
         if: success()

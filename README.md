@@ -127,8 +127,11 @@ The build process:
 - Clones source from upstream git repositories
 - Builds for all architectures using QEMU emulation
 - Signs packages with repository private key
+- Keeps the newest 5 versions of each package (by version number) and removes older ones
 - Generates repository indexes
 - Deploys to GitHub Pages
+
+Both this workflow and "Build Pi-Star APK" publish through `scripts/publish-repo.sh`: each adds its packages to gh-pages as it is at that moment and pushes without force, starting again if the other pushed first, so neither can undo the other's release.
 
 ### Automatic Builds
 
