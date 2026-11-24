@@ -373,6 +373,9 @@ jobs:
             done
           done
 
+      - name: Cleanup old package versions
+        run: scripts/prune-packages.sh 5 gh-pages/v*/community/*
+
       - name: Regenerate repository indexes
         env:
           APK_PRIVATE_KEY: ${{ secrets.APK_PRIVATE_KEY }}
