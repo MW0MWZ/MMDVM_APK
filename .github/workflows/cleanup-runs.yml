@@ -34,9 +34,12 @@ jobs:
 
             try {
               const old = [];
+              // Every run is listed and its status checked here: the API's
+              // status=completed filter leaves out some completed runs
+              // (GitHub Pages' own deployments among them)
               for await (const response of github.paginate.iterator(
                 github.rest.actions.listWorkflowRunsForRepo,
-                { owner, repo, status: 'completed', per_page: 100 }
+                { owner, repo, per_page: 100 }
               )) {
                 for (const run of response.data) {
                   if (run.status !== 'completed' || run.id === context.runId) {
