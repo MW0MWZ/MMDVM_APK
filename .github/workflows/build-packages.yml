@@ -526,8 +526,9 @@ jobs:
         with:
           path: artifacts/
 
-      # Starts from gh-pages as it is at the moment of publishing, not as
-      # it was checked out, and never force-pushes: a Pi-Star release
+      # Adds the packages to gh-pages as it is at the moment of publishing,
+      # not as it was checked out, tidies the whole repository (prune,
+      # indexes, site files) and never force-pushes: a Pi-Star release
       # published while this run was busy stays published.
       - name: Publish to gh-pages
         env:
@@ -537,7 +538,7 @@ jobs:
         run: |
           scripts/publish-repo.sh gh-pages \
             "Deploy APK repository - build #${{ github.run_number }}" \
-            scripts/update-packages-repo.sh artifacts
+            scripts/merge-artifacts.sh artifacts/packages-*/
 
       - name: Wait for the live repository, then purge Cloudflare
         if: success()
@@ -553,3 +554,12 @@ jobs:
           # previous release.
           scripts/wait-for-pages.sh || \
             echo "::warning::https://apk.pistar.uk is not yet serving the deployed index"
+
+  # Keep the Actions history short (see cleanup-runs.yml)
+  cleanup-runs:
+    name: Cleanup old workflow runs
+    needs: [prepare, build, deploy]
+    if: always()
+    permissions:
+      actions: write
+    uses: ./.github/workflows/cleanup-runs.yml

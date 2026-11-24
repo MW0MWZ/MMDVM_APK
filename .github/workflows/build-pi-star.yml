@@ -354,7 +354,8 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      # Starts from gh-pages as it is at the moment of publishing and never
+      # Adds the release to gh-pages as it is at the moment of publishing,
+      # tidies the whole repository (prune, indexes, site files) and never
       # force-pushes: when Build APK Packages publishes first, this starts
       # again from its commit, so neither release undoes the other.
       - name: Publish to gh-pages
@@ -363,7 +364,7 @@ jobs:
         run: |
           scripts/publish-repo.sh gh-pages \
             "pi-star ${{ github.event.client_payload.version }}" \
-            scripts/update-pi-star-repo.sh artifacts
+            scripts/merge-artifacts.sh artifacts/pi-star-*/
 
       - name: Wait for the live repository, then purge Cloudflare
         if: success()
@@ -379,3 +380,12 @@ jobs:
           # previous release.
           scripts/wait-for-pages.sh || \
             echo "::warning::https://apk.pistar.uk is not yet serving the deployed index"
+
+  # Keep the Actions history short (see cleanup-runs.yml)
+  cleanup-runs:
+    name: Cleanup old workflow runs
+    needs: [build, deploy]
+    if: always()
+    permissions:
+      actions: write
+    uses: ./.github/workflows/cleanup-runs.yml

@@ -131,7 +131,9 @@ The build process:
 - Generates repository indexes
 - Deploys to GitHub Pages
 
-Both this workflow and "Build Pi-Star APK" publish through `scripts/publish-repo.sh`: each adds its packages to gh-pages as it is at that moment and pushes without force, starting again if the other pushed first, so neither can undo the other's release.
+Both this workflow and "Build Pi-Star APK" publish through `scripts/publish-repo.sh`. Every publish adds its packages to gh-pages as it is at that moment, then tidies the whole repository (keeps the newest 5 versions of every package, removes stale or leftover indexes, signs a fresh index for every folder, restores the key and site files, rewrites STATS.md and README.md) and pushes without force, starting again if another workflow pushed first, so neither can undo the other's release.
+
+Every workflow ends by deleting old workflow runs (`cleanup-runs.yml`, also weekly): successful runs older than 5 days, others older than 30 days.
 
 ### Automatic Builds
 

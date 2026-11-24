@@ -310,3 +310,12 @@ jobs:
             // Add summary
             const summary = `## 🚀 Build Triggered\n\nTriggered builds for the following packages:\n${packageList.map(p => `- \`${p}\``).join('\n')}`;
             await core.summary.addRaw(summary).write();
+
+  # Keep the Actions history short (see cleanup-runs.yml)
+  cleanup-runs:
+    name: Cleanup old workflow runs
+    needs: [check-updates, update-apkbuilds, trigger-build]
+    if: always()
+    permissions:
+      actions: write
+    uses: ./.github/workflows/cleanup-runs.yml

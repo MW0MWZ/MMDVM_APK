@@ -2,14 +2,15 @@
 # Copy the packages from downloaded build artifacts into a repository
 # tree, each to v<alpine>/community/<arch>/ as found in its path.
 #
-#   merge-artifacts.sh DEST ARTIFACT_DIR...
+#   merge-artifacts.sh ARTIFACT_DIR... DEST
 #
 # Only .apk files are copied: indexes are signed afresh at publish.
 
 set -euo pipefail
 
-DEST=${1:?destination}
-shift
+[ "$#" -ge 2 ] || { echo "Usage: merge-artifacts.sh ARTIFACT_DIR... DEST" >&2; exit 1; }
+DEST=${!#}
+set -- "${@:1:$#-1}"
 
 copied=0
 for src in "$@"; do

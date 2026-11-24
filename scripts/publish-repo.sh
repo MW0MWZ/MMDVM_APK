@@ -1,25 +1,33 @@
 #!/usr/bin/env bash
-# Publish to the gh-pages branch without undoing anyone else's release.
+# Publish to the gh-pages branch, leaving the repository clean and ready
+# for use, without undoing anyone else's release.
 #
 #   publish-repo.sh DIR MESSAGE COMMAND [ARGS...]
 #
 # DIR is a git checkout of gh-pages. Each attempt:
 #   1. resets DIR to gh-pages as it is now on the remote
-#   2. runs COMMAND ARGS... DIR, which puts this run's packages in
-#   3. signs a fresh APKINDEX for every repository folder whose packages
-#      changed (or that has none yet)
+#   2. runs COMMAND ARGS... DIR, which adds this run's packages
+#   3. tidies the whole repository, whatever this run changed:
+#      - keeps the newest VERSIONS_TO_KEEP versions of every package
+#      - removes leftover unsigned indexes, and the index of a folder
+#        with no packages left
+#      - signs a fresh APKINDEX for every folder with packages
+#      - restores the public key, CNAME, index.html, _config.yml and
+#        .nojekyll, and rewrites STATS.md and README.md
 #   4. commits and pushes, never forced
-# Both package workflows publish this way. When the push is refused
-# because another workflow pushed first, the next attempt starts again
-# from that newer branch, so both releases end up published. A deploy
-# never replaces the branch with an older copy of it.
+# Every workflow that changes gh-pages publishes this way. When the push
+# is refused because another workflow pushed first, the next attempt
+# starts again from that newer branch, so both releases end up
+# published: a deploy never replaces the branch with an older copy.
 #
 # COMMAND may append lines for the commit message to "$PUBLISH_NOTES".
 #
 # Environment:
-#   APK_PRIVATE_KEY  signing key (required)
-#   KEY_PUB          public key, default keys/hamradio.rsa.pub
-#   ATTEMPTS         default 5
+#   APK_PRIVATE_KEY   signing key (required)
+#   KEY_PUB           public key, default keys/hamradio.rsa.pub
+#   VERSIONS_TO_KEEP  default 5
+#   SKIP_CLEANUP      "true" keeps every version (a manual run's choice)
+#   ATTEMPTS          default 5
 
 set -euo pipefail
 
@@ -30,6 +38,7 @@ shift 2
 : "${APK_PRIVATE_KEY:?}"
 KEY_PUB=${KEY_PUB:-keys/hamradio.rsa.pub}
 ATTEMPTS=${ATTEMPTS:-5}
+KEEP=${VERSIONS_TO_KEEP:-5}
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
@@ -72,6 +81,7 @@ index() {
 			apk index -o APKINDEX.unsigned.tar.gz *.apk
 			abuild-sign -k /keys/hamradio.rsa APKINDEX.unsigned.tar.gz
 			mv APKINDEX.unsigned.tar.gz APKINDEX.tar.gz
+			chown '"$(id -u):$(id -g)"' APKINDEX.tar.gz
 			echo "$(tar -xzOf APKINDEX.tar.gz APKINDEX | grep -c "^P:") packages in index"
 		'
 	echo "::endgroup::"
@@ -90,30 +100,39 @@ for ((attempt = 1; attempt <= ATTEMPTS; attempt++)); do
 
 	"$@" "$DIR"
 
-	# Folders to index: packages added or removed, or no index yet
-	mapfile -t changed < <(
-		{
-			git -C "$DIR" status --porcelain --untracked-files=all -- 'v*/community/*/*.apk' |
-				sed -E 's/^.{3}//; s/.* -> //' | xargs -r -n1 dirname
-			for d in "$DIR"/v*/community/*/; do
-				d=${d%/}
-				[ -f "$d/APKINDEX.tar.gz" ] || echo "${d#"$DIR"/}"
-			done
-		} | sort -u
-	)
-	for rel in "${changed[@]}"; do
-		repo="$DIR/$rel"
+	DELETED=0
+	FREED=0MB
+	if [ "${SKIP_CLEANUP:-false}" = "true" ]; then
+		echo "Cleanup skipped: every version kept"
+	else
+		: >"$WORK/prune"
+		PRUNE_ENV="$WORK/prune" scripts/prune-packages.sh "$KEEP" "$DIR"/v*/community/*
+		DELETED=$(sed -n 's/^CLEANUP_TOTAL_DELETED=//p' "$WORK/prune")
+		FREED=$(sed -n 's/^CLEANUP_SPACE_FREED=//p' "$WORK/prune")
+		if [ "$DELETED" != "0" ]; then
+			echo "Cleaned up $DELETED old packages, freed $FREED" >>"$PUBLISH_NOTES"
+		fi
+	fi
+
+	for repo in "$DIR"/v*/community/*/; do
+		repo=${repo%/}
+		rm -fv "$repo/APKINDEX.unsigned.tar.gz"
 		if compgen -G "$repo/*.apk" >/dev/null; then
 			index "$repo"
-		else
-			echo "$rel: no packages left, index removed"
+		elif [ -f "$repo/APKINDEX.tar.gz" ]; then
+			echo "${repo#"$DIR"/}: no packages, index removed"
 			rm -f "$repo/APKINDEX.tar.gz"
 		fi
 	done
 
+	cp "$KEY_PUB" "$DIR/hamradio.rsa.pub"
+	cp CNAME index.html _config.yml "$DIR/"
+	touch "$DIR/.nojekyll"
+	scripts/write-repo-pages.sh "$DIR" "$DELETED" "$FREED"
+
 	git -C "$DIR" add -A
 	if git -C "$DIR" diff --cached --quiet; then
-		echo "Nothing to publish: gh-pages already has these packages"
+		echo "Nothing to publish: gh-pages is already up to date"
 		exit 0
 	fi
 	git -C "$DIR" commit -q -F - <<-EOF

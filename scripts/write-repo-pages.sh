@@ -1,39 +1,17 @@
 #!/usr/bin/env bash
-# Build APK Packages' change to the repository, run by publish-repo.sh
-# on gh-pages as it is at each attempt.
+# Write the repository's STATS.md and README.md.
 #
-#   update-packages-repo.sh ARTIFACTS DEST
+#   write-repo-pages.sh DEST [DELETED FREED]
 #
-# Environment:
-#   VERSIONS_TO_KEEP  versions of each package to keep (default 5)
-#   SKIP_CLEANUP      "true" keeps every version
+# DELETED and FREED are the last cleanup's results, listed in STATS.md
+# when anything was removed.
 
 set -euo pipefail
 
-ARTIFACTS=${1:?artifacts directory}
-DEST=${2:?repository}
-KEEP=${VERSIONS_TO_KEEP:-5}
+DEST=${1:?repository}
+DELETED=${2:-0}
+FREED=${3:-0MB}
 
-scripts/merge-artifacts.sh "$DEST" "$ARTIFACTS"/packages-*/
-
-cp keys/hamradio.rsa.pub "$DEST/hamradio.rsa.pub"
-cp CNAME index.html _config.yml "$DEST/"
-touch "$DEST/.nojekyll"
-
-DELETED=0
-FREED=0MB
-if [ "${SKIP_CLEANUP:-false}" != "true" ]; then
-	result=$(mktemp)
-	PRUNE_ENV=$result scripts/prune-packages.sh "$KEEP" "$DEST"/v*/community/*
-	DELETED=$(sed -n 's/^CLEANUP_TOTAL_DELETED=//p' "$result")
-	FREED=$(sed -n 's/^CLEANUP_SPACE_FREED=//p' "$result")
-	rm -f "$result"
-	if [ "$DELETED" != "0" ]; then
-		echo "Cleaned up $DELETED old packages, freed $FREED" >>"${PUBLISH_NOTES:-/dev/null}"
-	fi
-fi
-
-# STATS.md
 {
 	echo "# Repository Statistics"
 	echo "Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
@@ -62,7 +40,6 @@ fi
 	fi
 } >"$DEST/STATS.md"
 
-# README.md
 {
 	echo "# Ham Radio APK Repository"
 	echo ""

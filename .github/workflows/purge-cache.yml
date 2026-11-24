@@ -22,3 +22,12 @@ jobs:
           SITE: https://apk.pistar.uk
           INDEX_PATHS: v3.23/community/x86_64/APKINDEX.tar.gz v3.23/community/armhf/APKINDEX.tar.gz v3.23/community/aarch64/APKINDEX.tar.gz v3.23/community/noarch/APKINDEX.tar.gz v3.22/community/x86_64/APKINDEX.tar.gz v3.22/community/armhf/APKINDEX.tar.gz v3.22/community/aarch64/APKINDEX.tar.gz v3.22/community/noarch/APKINDEX.tar.gz hamradio.rsa.pub
         run: scripts/wait-for-pages.sh
+
+  # Keep the Actions history short (see cleanup-runs.yml)
+  cleanup-runs:
+    name: Cleanup old workflow runs
+    needs: [purge]
+    if: always()
+    permissions:
+      actions: write
+    uses: ./.github/workflows/cleanup-runs.yml
