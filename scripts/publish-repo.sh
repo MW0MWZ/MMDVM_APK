@@ -15,6 +15,9 @@
 #      - restores the public key, CNAME, index.html, _config.yml and
 #        .nojekyll, and rewrites STATS.md and README.md
 #   4. commits and pushes, never forced
+# Each index must verify against KEY_PUB, the key published as
+# hamradio.rsa.pub for clients, or nothing is pushed: a wrong signing
+# key fails here, not on every client.
 # Every workflow that changes gh-pages publishes this way. When the push
 # is refused because another workflow pushed first, the next attempt
 # starts again from that newer branch, so both releases end up
@@ -82,6 +85,16 @@ index() {
 			abuild-sign -k /keys/hamradio.rsa APKINDEX.unsigned.tar.gz
 			mv APKINDEX.unsigned.tar.gz APKINDEX.tar.gz
 			chown '"$(id -u):$(id -g)"' APKINDEX.tar.gz
+			# Clients trust hamradio.rsa.pub: the index must be signed
+			# under that name and verify against the key published
+			if ! tar -tzf APKINDEX.tar.gz | grep -qx ".SIGN.RSA.hamradio.rsa.pub"; then
+				echo "Error: APKINDEX.tar.gz is not signed as hamradio.rsa.pub" >&2
+				exit 1
+			fi
+			if ! apk verify APKINDEX.tar.gz; then
+				echo "Error: APKINDEX.tar.gz does not verify against the published public key" >&2
+				exit 1
+			fi
 			echo "$(tar -xzOf APKINDEX.tar.gz APKINDEX | grep -c "^P:") packages in index"
 		'
 	echo "::endgroup::"
