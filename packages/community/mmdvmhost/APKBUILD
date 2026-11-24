@@ -42,7 +42,7 @@ _cal_gitcommit="888aa8e"
 giturl_display="https://github.com/g4klx/MMDVM-Display.git"
 _display_gitcommit="7ba1003"
 giturl_info="https://github.com/g4klx/MMDVM-Info.git"
-_info_gitcommit="a1d884a"
+_info_gitcommit="69d6c09"
 giturl_oled="https://github.com/MW0MWZ/ArduiPi_OLED.git"
 _oled_gitcommit="5b223a4"
 
@@ -89,16 +89,6 @@ prepare() {
 
 	local git_version_info=$(git describe --tags --always)
 	msg "MMDVM-Info git version: $git_version_info"
-
-	# Upstream relies on <unistd.h> being pulled in indirectly, which musl
-	# doesn't do. Patches are applied here because source="" means
-	# default_prepare has nothing to apply. Once upstream has the include
-	# (g4klx/MMDVM-Info#1, however it lands) the patch is skipped.
-	if grep -q '^#include <unistd.h>' MMDVM-Info.cpp; then
-		msg "MMDVM-Info already includes <unistd.h>; patch not needed"
-	else
-		patch -p1 < "$startdir"/mmdvminfo-musl-unistd.patch
-	fi
 
 	# Clone ArduiPi_OLED library (ARM only, needed for MMDVM-Display OLED support)
 	case "$CARCH" in
