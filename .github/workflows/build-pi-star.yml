@@ -21,12 +21,15 @@ jobs:
           - arch: x86_64
             platform: linux/amd64
             binary: pistar-mcp-linux-amd64
+            splash_binary: pistar-splash-linux-amd64
           - arch: armhf
             platform: linux/arm/v6
             binary: pistar-mcp-linux-arm
+            splash_binary: pistar-splash-linux-arm
           - arch: aarch64
             platform: linux/arm64
             binary: pistar-mcp-linux-arm64
+            splash_binary: pistar-splash-linux-arm64
       fail-fast: false
       max-parallel: 3
 
@@ -69,6 +72,13 @@ jobs:
           gh release download "$TAG" \
             --repo "$REPO" \
             --pattern "${{ matrix.binary }}"
+
+          # Download the boot-splash binary too (releases from the splash
+          # feature on). Tolerate its absence so older releases still build.
+          gh release download "$TAG" \
+            --repo "$REPO" \
+            --pattern "${{ matrix.splash_binary }}" || \
+            echo "No ${{ matrix.splash_binary }} in this release; building without the splash"
 
           # Download Alpine packaging files
           gh release download "$TAG" \
@@ -158,6 +168,16 @@ jobs:
 
           # Copy the binary (renamed to pistar-mcp)
           cp "release-assets/${{ matrix.binary }}" "$TEMP_DIR/pistar-mcp"
+
+          # Boot splash: its binary (renamed to pistar-splash) and service,
+          # when the release carries them. The APKBUILD guards on the binary
+          # being present, so an older release simply ships no splash.
+          if [ -f "release-assets/${{ matrix.splash_binary }}" ]; then
+            cp "release-assets/${{ matrix.splash_binary }}" "$TEMP_DIR/pistar-splash"
+          fi
+          if [ -f release-assets/pistar-splash.initd ]; then
+            cp release-assets/pistar-splash.initd "$TEMP_DIR/"
+          fi
 
           # Set version in APKBUILD
           sed -i "s/^pkgver=.*/pkgver=${VERSION}/" "$TEMP_DIR/APKBUILD"
