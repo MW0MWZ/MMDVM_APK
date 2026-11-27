@@ -1,5 +1,5 @@
 # Repository Statistics
-Generated: 2026-11-27 19:32:34 UTC
+Generated: 2026-11-27 22:39:41 UTC
 
 ## Alpine 3.23
 - **x86_64**: 55 packages (79M)
@@ -10,13 +10,13 @@ Generated: 2026-11-27 19:32:34 UTC
 ## Alpine 3.22
 - **x86_64**: 55 packages (51M)
 - **armhf**: 65 packages (51M)
-- **aarch64**: 65 packages (50M)
+- **aarch64**: 65 packages (51M)
 - **noarch**: 105 packages (800K)
 
 ## Total
 - **Total Packages**: 580
-- **Repository Size**: 387M
+- **Repository Size**: 388M
 
 ## Last Cleanup
-- **Packages Removed**: 4
-- **Space Freed**: 30MB
+- **Packages Removed**: 10
+- **Space Freed**: 3MB
